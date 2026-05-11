@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="72.66mm" height="72.66mm" viewBox="0 0 72.6603 72.6603">
+  <!-- Encoder wheel laser template — all dimensions in mm -->
+  <style>
+    .cut     { fill: none; stroke: #FF0000; stroke-width: 0.15; }
+    .engrave { fill: none; stroke: #0000FF; stroke-width: 0.10; stroke-dasharray: 0.5 0.5; }
+  </style>
+  <g transform="translate(36.3301,36.3301)">
+    <circle cx="0" cy="0" r="32.3301" class="cut" />
+    <circle cx="0" cy="0" r="5.0000" class="cut" />
+    <path d="M 9.2301,-2.6000 L 9.2301,2.6000 L 29.4301,2.6000 L 29.4301,-2.6000 Z" class="cut" />
+    <path d="M 9.2935,2.3634 L 6.6935,6.8667 L 24.1872,16.9667 L 26.7872,12.4634 Z" class="cut" />
+    <path d="M 6.8667,6.6935 L 2.3634,9.2935 L 12.4634,26.7872 L 16.9667,24.1872 Z" class="cut" />
+    <path d="M 2.6000,9.2301 L -2.6000,9.2301 L -2.6000,29.4301 L 2.6000,29.4301 Z" class="cut" />
+    <path d="M -2.3634,9.2935 L -6.8667,6.6935 L -16.9667,24.1872 L -12.4634,26.7872 Z" class="cut" />
+    <path d="M -6.6935,6.8667 L -9.2935,2.3634 L -26.7872,12.4634 L -24.1872,16.9667 Z" class="cut" />
+    <path d="M -9.2301,2.6000 L -9.2301,-2.6000 L -29.4301,-2.6000 L -29.4301,2.6000 Z" class="cut" />
+    <path d="M -9.2935,-2.3634 L -6.6935,-6.8667 L -24.1872,-16.9667 L -26.7872,-12.4634 Z" class="cut" />
+    <path d="M -6.8667,-6.6935 L -2.3634,-9.2935 L -12.4634,-26.7872 L -16.9667,-24.1872 Z" class="cut" />
+    <path d="M -2.6000,-9.2301 L 2.6000,-9.2301 L 2.6000,-29.4301 L -2.6000,-29.4301 Z" class="cut" />
+    <path d="M 2.3634,-9.2935 L 6.8667,-6.6935 L 16.9667,-24.1872 L 12.4634,-26.7872 Z" class="cut" />
+    <path d="M 6.6935,-6.8667 L 9.2935,-2.3634 L 26.7872,-12.4634 L 24.1872,-16.9667 Z" class="cut" />
+    <circle cx="0" cy="0" r="9.3301" class="engrave" />
+    <line x1="30.8301" y1="0.0000" x2="32.0301" y2="0.0000" class="engrave" />
+    <line x1="26.6997" y1="15.4151" x2="27.7389" y2="16.0151" class="engrave" />
+    <line x1="15.4151" y1="26.6997" x2="16.0151" y2="27.7389" class="engrave" />
+    <line x1="0.0000" y1="30.8301" x2="0.0000" y2="32.0301" class="engrave" />
+    <line x1="-15.4151" y1="26.6997" x2="-16.0151" y2="27.7389" class="engrave" />
+    <line x1="-26.6997" y1="15.4151" x2="-27.7389" y2="16.0151" class="engrave" />
+    <line x1="-30.8301" y1="0.0000" x2="-32.0301" y2="0.0000" class="engrave" />
+    <line x1="-26.6997" y1="-15.4151" x2="-27.7389" y2="-16.0151" class="engrave" />
+    <line x1="-15.4151" y1="-26.6997" x2="-16.0151" y2="-27.7389" class="engrave" />
+    <line x1="-0.0000" y1="-30.8301" x2="-0.0000" y2="-32.0301" class="engrave" />
+    <line x1="15.4151" y1="-26.6997" x2="16.0151" y2="-27.7389" class="engrave" />
+    <line x1="26.6997" y1="-15.4151" x2="27.7389" y2="-16.0151" class="engrave" />
+  </g>
+  <text x="4.0" y="71.16" font-family="monospace" font-size="1.8" fill="#444">Encoder wheel: 12 magnets, 20.0×5.0×2.0 mm, r_inner=9.33 mm, r_outer=29.33 mm, disc Ø=64.7 mm.  Red = cut, Blue = engrave.  Sheet thickness = 2.0 mm.</text>
+</svg>

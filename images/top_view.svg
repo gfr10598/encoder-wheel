@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="84.66025403784438mm" height="84.66025403784438mm" viewBox="0 0 84.66025403784438 84.66025403784438">
+  <title>Encoder Wheel — Top View</title>
+  <defs>
+    <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#555"/>
+    </marker>
+    <marker id="arr2" markerWidth="6" markerHeight="6" refX="1" refY="3" orient="auto">
+      <path d="M6,0 L0,3 L6,6 Z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect width="84.66025403784438" height="84.66025403784438" fill="white"/>
+  <g transform="translate(42.330,42.330)">
+  <circle cx="0.000" cy="0.000" r="32.330" fill="#e8e8e8" stroke="#555" stroke-width="0.4"/>
+  <circle cx="0.000" cy="0.000" r="9.330" fill="white" stroke="#aaa" stroke-width="0.2" stroke-dasharray="1 1"/>
+  <circle cx="0.000" cy="0.000" r="5.000" fill="#ddd" stroke="#555" stroke-width="0.3"/>
+  <polygon points="9.330,-2.500 9.330,2.500 29.330,2.500 29.330,-2.500" fill="#4a90d9" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="9.330,2.500 6.830,6.830 24.151,16.830 26.651,12.500" fill="#2e6bb0" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="6.830,6.830 2.500,9.330 12.500,26.651 16.830,24.151" fill="#4a90d9" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="2.500,9.330 -2.500,9.330 -2.500,29.330 2.500,29.330" fill="#2e6bb0" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="-2.500,9.330 -6.830,6.830 -16.830,24.151 -12.500,26.651" fill="#4a90d9" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="-6.830,6.830 -9.330,2.500 -26.651,12.500 -24.151,16.830" fill="#2e6bb0" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="-9.330,2.500 -9.330,-2.500 -29.330,-2.500 -29.330,2.500" fill="#4a90d9" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="-9.330,-2.500 -6.830,-6.830 -24.151,-16.830 -26.651,-12.500" fill="#2e6bb0" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="-6.830,-6.830 -2.500,-9.330 -12.500,-26.651 -16.830,-24.151" fill="#4a90d9" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="-2.500,-9.330 2.500,-9.330 2.500,-29.330 -2.500,-29.330" fill="#2e6bb0" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="2.500,-9.330 6.830,-6.830 16.830,-24.151 12.500,-26.651" fill="#4a90d9" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <polygon points="6.830,-6.830 9.330,-2.500 26.651,-12.500 24.151,-16.830" fill="#2e6bb0" stroke="white" stroke-width="0.3" opacity="0.9"/>
+  <circle cx="9.330" cy="2.500" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="6.830" cy="6.830" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="2.500" cy="9.330" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="-2.500" cy="9.330" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="-6.830" cy="6.830" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="-9.330" cy="2.500" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="-9.330" cy="-2.500" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="-6.830" cy="-6.830" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="-2.500" cy="-9.330" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="2.500" cy="-9.330" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="6.830" cy="-6.830" r="0.400" fill="#e74c3c" stroke="none"/>
+  <circle cx="9.330" cy="-2.500" r="0.400" fill="#e74c3c" stroke="none"/>
+  <line x1="0.000" y1="0.000" x2="9.330" y2="0.000" stroke="#555" stroke-width="0.25" marker-end="url(#arr)" marker-start="url(#arr2)"/>
+  <text x="2.665" y="-1.000" font-size="2.5" fill="#333" font-family="sans-serif">r_inner = 9.3 mm</text>
+  <line x1="0.000" y1="0.000" x2="0.000" y2="-29.330" stroke="#555" stroke-width="0.25" marker-end="url(#arr)" marker-start="url(#arr2)"/>
+  <text x="0.500" y="-19.330" font-size="2.5" fill="#333" font-family="sans-serif">20 mm</text>
+<text x="17.830" y="1.000" font-size="3.5" fill="white" font-weight="bold" font-family="sans-serif">N</text>
+<text x="15.240" y="10.665" font-size="3.5" fill="white" font-weight="bold" font-family="sans-serif">S</text>
+  <line x1="9.330" y1="2.500" x2="17.330" y2="-5.500" stroke="#e74c3c" stroke-width="0.3" marker-end="url(#arr)"/>
+<text x="17.630" y="-5.500" font-size="2.4" fill="#c0392b" font-family="sans-serif">inner corners</text>
+<text x="17.630" y="-2.500" font-size="2.4" fill="#c0392b" font-family="sans-serif">touching</text>
+  </g>
+<text x="4.000" y="7.000" font-size="3.5" fill="#222" font-family="sans-serif" font-weight="bold">Encoder Wheel — Top View (12 magnets, 20×5×2 mm)</text>
+<text x="4.000" y="12.000" font-size="2.5" fill="#555" font-family="sans-serif">● = inner corner touching points   ■ Blue = North pole   ■ Dark blue = South pole</text>
+</svg>
