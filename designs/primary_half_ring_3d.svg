@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <rect width="500" height="260" fill="#ffffff"/>
+  <path d="M48,206 A202,118 0 0 1 452,206 L395,206 A145,84 0 0 0 105,206 Z" fill="#dbe7f9" stroke="#1f3a6d" stroke-width="2"/>
+  <path d="M48,206 A202,118 0 0 1 452,206 L452,187 A202,118 0 0 0 48,187 Z" fill="#c2d8f2" stroke="#1f3a6d" stroke-width="1.5"/>
+  <path d="M105,206 A145,84 0 0 1 395,206 L395,189 A145,84 0 0 0 105,189 Z" fill="#ffffff" stroke="#6b8fc4" stroke-width="1.2"/>
+  <g fill="#4f83cc">
+    <rect x="141" y="178" width="9" height="18" rx="1"/>
+    <rect x="168" y="165" width="9" height="18" rx="1"/>
+    <rect x="199" y="155" width="9" height="18" rx="1"/>
+    <rect x="232" y="149" width="9" height="18" rx="1"/>
+    <rect x="264" y="149" width="9" height="18" rx="1"/>
+    <rect x="296" y="155" width="9" height="18" rx="1"/>
+    <rect x="327" y="166" width="9" height="18" rx="1"/>
+    <rect x="354" y="178" width="9" height="18" rx="1"/>
+  </g>
+  <text x="250" y="242" text-anchor="middle" font-family="monospace" font-size="13" fill="#1f3a6d">3D view: primary half ring (lower layer)</text>
+</svg>

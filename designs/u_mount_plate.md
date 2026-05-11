@@ -7,3 +7,5 @@ This is the face plate around the gudgeon for mounting and alignment.
 - Includes paired set-screw + lock-screw hole pattern for alignment to axle centerline
 
 ![U-shaped mount plate](./u_mount_plate.svg)
+
+![U-shaped mount plate 3D view](./u_mount_plate_3d.svg)

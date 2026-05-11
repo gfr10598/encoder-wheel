@@ -46,6 +46,7 @@ encoder-wheel/
     ├── cross_section.svg
     └── geometry.svg
 designs/
+├── assembly.md
 ├── primary_half_ring.md
 ├── secondary_half_ring.md
 └── u_mount_plate.md

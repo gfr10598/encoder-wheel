@@ -7,3 +7,5 @@ This part is one of two upper halves that overlap the lower split line and lock 
 - Bridges the primary split so the final ring behaves as one structure
 
 ![Secondary half ring](./secondary_half_ring.svg)
+
+![Secondary half ring 3D view](./secondary_half_ring_3d.svg)

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" width="760" height="360">
+  <rect width="760" height="360" fill="#ffffff"/>
+
+  <path d="M32,268 A135,76 0 0 1 292,268 L252,268 A95,52 0 0 0 72,268 Z" fill="#dbe7f9" stroke="#1f3a6d" stroke-width="2"/>
+  <path d="M32,268 A135,76 0 0 1 292,268 L292,252 A135,76 0 0 0 32,252 Z" fill="#c2d8f2" stroke="#1f3a6d" stroke-width="1.2"/>
+  <text x="162" y="306" text-anchor="middle" font-family="monospace" font-size="12" fill="#1f3a6d">Primary halves</text>
+
+  <path d="M272,220 A135,76 0 0 1 532,220 L492,220 A95,52 0 0 0 312,220 Z" fill="#dff3e5" stroke="#1a5d33" stroke-width="2"/>
+  <path d="M272,220 A135,76 0 0 1 532,220 L532,204 A135,76 0 0 0 272,204 Z" fill="#ccebd7" stroke="#1a5d33" stroke-width="1.2"/>
+  <text x="402" y="258" text-anchor="middle" font-family="monospace" font-size="12" fill="#1a5d33">Secondary halves (rotated)</text>
+
+  <path d="M480,166 A168,112 0 1 1 720,166 L678,166 A124,82 0 1 0 522,166 Z" fill="#f8ead9" stroke="#824f1e" stroke-width="2"/>
+  <path d="M480,166 A168,112 0 1 1 720,166 L720,148 A168,112 0 1 0 480,148 Z" fill="#efd9bf" stroke="#824f1e" stroke-width="1.1"/>
+  <text x="600" y="52" text-anchor="middle" font-family="monospace" font-size="12" fill="#824f1e">U mount plate</text>
+
+  <line x1="228" y1="238" x2="308" y2="214" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="468" y1="194" x2="520" y2="168" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="562" y1="170" x2="562" y2="198" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="560" y="214" text-anchor="middle" font-family="monospace" font-size="11" fill="#444">stack direction</text>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0,0 10,4 0,8" fill="#6b7280"/>
+    </marker>
+  </defs>
+  <text x="380" y="338" text-anchor="middle" font-family="monospace" font-size="13" fill="#333">Exploded 3D assembly sequence around split steel backing ring</text>
+</svg>

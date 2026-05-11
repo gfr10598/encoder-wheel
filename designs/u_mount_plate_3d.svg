@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" width="500" height="320">
+  <rect width="500" height="320" fill="#ffffff"/>
+  <path d="M95,262 A155,116 0 1 1 405,262 L350,262 A104,78 0 1 0 150,262 Z" fill="#f8ead9" stroke="#824f1e" stroke-width="2"/>
+  <path d="M95,262 A155,116 0 1 1 405,262 L405,242 A155,116 0 1 0 95,242 Z" fill="#efd9bf" stroke="#824f1e" stroke-width="1.5"/>
+  <ellipse cx="250" cy="186" rx="62" ry="45" fill="#ffffff" stroke="#824f1e" stroke-dasharray="4 3" stroke-width="1.3"/>
+  <g fill="#cc7c2d">
+    <rect x="166" y="212" width="8" height="16" rx="1"/>
+    <rect x="190" y="194" width="8" height="16" rx="1"/>
+    <rect x="216" y="184" width="8" height="16" rx="1"/>
+    <rect x="242" y="181" width="8" height="16" rx="1"/>
+    <rect x="268" y="184" width="8" height="16" rx="1"/>
+    <rect x="294" y="194" width="8" height="16" rx="1"/>
+    <rect x="318" y="212" width="8" height="16" rx="1"/>
+  </g>
+  <g fill="#333333">
+    <circle cx="170" cy="162" r="3"/><circle cx="188" cy="162" r="2.4"/>
+    <circle cx="212" cy="148" r="3"/><circle cx="229" cy="148" r="2.4"/>
+    <circle cx="271" cy="148" r="3"/><circle cx="288" cy="148" r="2.4"/>
+    <circle cx="312" cy="162" r="3"/><circle cx="330" cy="162" r="2.4"/>
+  </g>
+  <text x="250" y="298" text-anchor="middle" font-family="monospace" font-size="13" fill="#824f1e">3D view: U-shaped mount plate with set/lock screw pairs</text>
+</svg>

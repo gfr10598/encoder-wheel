@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <rect width="500" height="260" fill="#ffffff"/>
+  <path d="M56,208 A194,112 0 0 1 444,208 L392,208 A138,78 0 0 0 108,208 Z" fill="#dff3e5" stroke="#1a5d33" stroke-width="2"/>
+  <path d="M56,208 A194,112 0 0 1 444,208 L444,192 A194,112 0 0 0 56,192 Z" fill="#ccebd7" stroke="#1a5d33" stroke-width="1.5"/>
+  <path d="M108,208 A138,78 0 0 1 392,208 L392,192 A138,78 0 0 0 108,192 Z" fill="#ffffff" stroke="#4a9b69" stroke-width="1.1"/>
+  <path d="M250,74 L250,212" stroke="#1a5d33" stroke-dasharray="5 4" stroke-width="1.5"/>
+  <text x="250" y="66" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a5d33">Offset seam axis</text>
+  <text x="250" y="242" text-anchor="middle" font-family="monospace" font-size="13" fill="#1a5d33">3D view: secondary half ring (upper locking layer)</text>
+</svg>

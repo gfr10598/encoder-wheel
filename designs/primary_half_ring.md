@@ -7,3 +7,5 @@ This part is one of the two lower halves that bolt to the split steel backing ri
 - Adds seam lugs for bridge support near each cut end
 
 ![Primary half ring](./primary_half_ring.svg)
+
+![Primary half ring 3D view](./primary_half_ring_3d.svg)
