@@ -203,201 +203,213 @@ def points_attr(points: list[tuple[float, float]]) -> str:
 
 
 def generate_cross_section_svg(data: dict) -> str:
-    """Radial cross-section: base at BOTTOM (Z=0), walls extend upward.
+    """Radial cross-section sliced from the build123d cover solid at Y=0.
 
-    Axial layout (bottom to top):
-      Z0=0       print-bed face (bottom of base)
-      Z1         top of base / cavity floor
-      Z2         magnet zone ceiling
-      Z3         steel seat (ring rests here)
-      Z4         top of chamfer lead-in (open mouth of cavity)
-      Z5         snap tooth tip
+    The ExportSVG geometry group uses transform="scale(1,-1)", which means
+    SVG root coordinates map directly to design coordinates:
+        SVG x = radial position (mm),  left = cover ID, right = cover OD
+        SVG y = axial position (mm),   top  = z=0 (base/bed), bottom = z=z5
 
-    Radial layout (left to right):
-      x=0        cover inner edge (5.75 in ID)
-      x=cw       steel inner edge (6 in ID)
-      x=cw+sw    steel outer edge (8 in OD)
-      x=span     cover outer edge (8.25 in OD)
+    Deferred imports avoid the circular dependency:
+        generate_half_ring_docs  ←  (design_data)  ←  generate_half_ring_3d
     """
-    width = 300.0
-    height = 170.0
-    lines = svg_header(width, height, "10 in half-ring cover \u2014 radial cross section")
+    # Deferred imports — avoid circular dependency and make build123d optional
+    # for scripts that only need design_data().
+    import os
+    import tempfile
+    import xml.etree.ElementTree as ET
+    from generate_half_ring_3d import make_cover
+    from build123d import Axis, Box, Align, Color, ExportSVG
 
-    # True-scale coordinate system
-    # x-axis: radial position measured from the cover inner edge (left = cover ID)
-    # y-axis: axial depth below the base bottom face (top of drawing = base outer face)
-    x0 = 36.0          # SVG x of cover inner edge
-    y_base_top = 38.0  # SVG y of base top face (outer/print-bed face)
-    sx = 7.0            # mm → SVG units (radial)
-    sy = 7.0            # mm → SVG units (axial, downward)
-
-    def xp(mm: float) -> float:
-        return x0 + mm * sx
-
-    def yp_below(mm: float) -> float:
-        """mm below base bottom face → SVG y (downward)."""
-        return y_base_top + data["base_thickness"] * sy + mm * sy
-
-    def yp_base(mm: float) -> float:
-        """mm above base bottom face (into base) → SVG y (upward from base bottom)."""
-        return y_base_top + data["base_thickness"] * sy - mm * sy
-
-    # Radial offsets from cover inner edge
-    cover_span  = data["cover_radial_span"]          # 31.75 mm
-    steel_start = data["steel_inner_radius"] - data["cover_inner_radius"]  # 3.175 mm
-    steel_end   = data["steel_outer_radius"]  - data["cover_inner_radius"]  # 28.575 mm
-    mag_start   = data["magnet_inner_radius"] - data["cover_inner_radius"]  # 5.875 mm
-    mag_end     = data["magnet_outer_radius"]  - data["cover_inner_radius"]  # 25.875 mm
-
-    bt     = data["base_thickness"]      # 1.0 mm
-    mt     = data["magnet_thickness"]    # 2.0 mm
-    st     = data["steel_thickness"]     # 3.175 mm
-    swe    = data["steel_wall_extra"]    # 1.0 mm
-    wall_h = st + swe                    # 4.175 mm total wall depth below base
-    snap   = data["snap_overhang"]       # 0.2 mm
-    cw     = data["cover_wall"]          # 3.175 mm (1/8 in)
-
-    cid = 2.0 * data["cover_inner_radius"] / INCH
-    cod = 2.0 * data["cover_outer_radius"] / INCH
-
-    # ── Title / legend ────────────────────────────────────────────────
-    lines.append(
-        f'  <text x="8" y="9" class="label">Half-ring cover \u2014 radial cross section (base at top, walls hang down)</text>'
-    )
-    lines.append(
-        f'  <text x="8" y="14.5" class="note">True scale \u2014 gray: printed cover; dark gray: 1/8 in steel ring (reference); blue: 20\xd72 mm magnets. ID {cid:.3f} in / OD {cod:.3f} in.</text>'
+    # ── 1. Build cover and extract +Y face of Y=0 cross-section ──────
+    cover = make_cover(data)
+    slab = Box(300, 0.01, 30, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    section = cover.intersect(slab)
+    xz_face = next(
+        f for f in section.faces()
+        if f.normal_at().Y > 0.9 and f.bounding_box().min.X > 0
     )
 
-    # ── Radial span dimension above the base ─────────────────────────
-    dim_y = y_base_top - 7.0
-    lines.append(
-        f'  <line x1="{xp(0):.2f}" y1="{dim_y:.2f}" x2="{xp(cover_span):.2f}" y2="{dim_y:.2f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{xp(cover_span / 2):.2f}" y="{dim_y - 2:.2f}" text-anchor="middle" class="text" font-size="3.1">'
-        f'{cover_span / INCH:.3f} in = {cover_span:.2f} mm radial span</text>'
-    )
+    # ── 2. Rotate +90° around X: (x,0,z)→(x,−z,0) → face in XY plane ─
+    #    ExportSVG's "scale(1,−1)" group then renders at (x, z) on screen,
+    #    so SVG root coords (x, y) = design (x_mm, z_mm) directly.
+    rotated = xz_face.rotate(Axis.X, 90)
 
-    # ── Base plate (full span, 1 mm thick) ───────────────────────────
-    lines.append(
-        f'  <rect x="{xp(0):.2f}" y="{y_base_top:.2f}"'
-        f' width="{cover_span * sx:.2f}" height="{bt * sy:.2f}"'
-        f' fill="#d9d9d9" stroke="#666" stroke-width="0.5"/>'
+    # ── 3. Export geometry to temp SVG ────────────────────────────────
+    fd, tmppath = tempfile.mkstemp(suffix=".svg")
+    os.close(fd)
+    exporter = ExportSVG(scale=1, margin=2)
+    exporter.add_layer(
+        "cover",
+        fill_color=Color(0.84, 0.84, 0.84),
+        line_color=Color(0.35, 0.35, 0.35),
+        line_weight=0.4,
     )
+    exporter.add_shape(rotated, layer="cover")
+    exporter.write(tmppath)
 
-    # ── Inner capture wall (x=0 → x=steel_start, full wall_h deep) ───
-    lines.append(
-        f'  <rect x="{xp(0):.2f}" y="{yp_below(0):.2f}"'
-        f' width="{steel_start * sx:.2f}" height="{wall_h * sy:.2f}"'
-        f' fill="#c0c0c0" stroke="#666" stroke-width="0.5"/>'
+    # ── 4. Parse temp SVG, extract geometry group ─────────────────────
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    tree = ET.parse(tmppath)
+    os.unlink(tmppath)
+    svg_root = tree.getroot()
+    ns = "{http://www.w3.org/2000/svg}"
+    vb_x, vb_y, vb_w, vb_h = (
+        float(v) for v in svg_root.attrib["viewBox"].split()
     )
+    geom_group = svg_root.find(f"{ns}g")
+    geom_xml = ET.tostring(geom_group, encoding="unicode")
 
-    # ── Outer capture wall (x=steel_end → x=cover_span, full wall_h deep) ──
-    lines.append(
-        f'  <rect x="{xp(steel_end):.2f}" y="{yp_below(0):.2f}"'
-        f' width="{(cover_span - steel_end) * sx:.2f}" height="{wall_h * sy:.2f}"'
-        f' fill="#c0c0c0" stroke="#666" stroke-width="0.5"/>'
-    )
+    # ── 5. Design values ──────────────────────────────────────────────
+    cir = data["cover_inner_radius"]    # 73.025 mm
+    cor = data["cover_outer_radius"]    # 104.775 mm
+    sir = data["steel_inner_radius"]    # 76.200 mm
+    sor = data["steel_outer_radius"]    # 101.600 mm
+    mir = data["magnet_inner_radius"]
+    mor = data["magnet_outer_radius"]
+    z1, z2, z3, z4, z5 = data["z1"], data["z2"], data["z3"], data["z4"], data["z5"]
+    mt   = data["magnet_thickness"]
+    cw   = data["cover_wall"]
+    cid  = 2 * cir / INCH
+    cod  = 2 * cor / INCH
 
-    # ── Magnet reference (blue, inside cavity against base bottom) ────
-    lines.append(
-        f'  <rect x="{xp(mag_start):.2f}" y="{yp_below(0):.2f}"'
-        f' width="{(mag_end - mag_start) * sx:.2f}" height="{mt * sy:.2f}"'
-        f' fill="#4a90d9" stroke="#2e6bb0" stroke-width="0.5"/>'
-    )
-    lines.append(
-        f'  <text x="{xp((mag_start + mag_end) / 2):.2f}" y="{yp_below(mt / 2) + 1.2:.2f}"'
-        f' text-anchor="middle" font-size="3.0" fill="white" font-family="sans-serif">20\xd72 mm magnet</text>'
-    )
+    # ── 6. Expand viewBox for annotation margins ──────────────────────
+    left_margin  = 32   # space for Z bracket labels
+    top_margin   = 10   # space for title + radial tick labels
+    bot_margin   = 12   # space for bottom dimension arrows
+    right_margin = 6
 
-    # ── Steel ring reference (dark gray, below magnets) ───────────────
-    lines.append(
-        f'  <rect x="{xp(steel_start):.2f}" y="{yp_below(mt):.2f}"'
-        f' width="{(steel_end - steel_start) * sx:.2f}" height="{st * sy:.2f}"'
-        f' fill="#888" stroke="#555" stroke-width="0.5"/>'
-    )
-    lines.append(
-        f'  <text x="{xp((steel_start + steel_end) / 2):.2f}" y="{yp_below(mt + st / 2) + 1.2:.2f}"'
-        f' text-anchor="middle" font-size="3.0" fill="white" font-family="sans-serif">1/8 in steel ring</text>'
-    )
+    nx  = vb_x - left_margin
+    ny  = vb_y - top_margin
+    nw  = vb_w + left_margin + right_margin
+    nh  = vb_h + top_margin + bot_margin
 
-    # ── Snap overhangs at the free (open) end of each capture wall ───
-    # Inner snap: protrudes inward from inner wall's cavity-facing edge
-    lines.append(
-        f'  <rect x="{xp(steel_start):.2f}" y="{yp_below(wall_h):.2f}"'
-        f' width="{snap * sx:.2f}" height="{snap * sy:.2f}"'
-        f' fill="#777" stroke="#555" stroke-width="0.3"/>'
-    )
-    # Outer snap: protrudes inward from outer wall's cavity-facing edge
-    lines.append(
-        f'  <rect x="{xp(steel_end - snap):.2f}" y="{yp_below(wall_h):.2f}"'
-        f' width="{snap * sx:.2f}" height="{snap * sy:.2f}"'
-        f' fill="#777" stroke="#555" stroke-width="0.3"/>'
-    )
+    # Coordinate helper: convert (x_design, z_design) → SVG attribute strings
+    def fx(v: float) -> str: return f"{v:.3f}"
+    def fy(v: float) -> str: return f"{v:.3f}"
 
-    # ── Axial dimension lines (left side) ────────────────────────────
-    left_dim_x = xp(-2.5)
-    # Base thickness
-    lines.append(
-        f'  <line x1="{left_dim_x:.2f}" y1="{y_base_top:.2f}" x2="{left_dim_x:.2f}" y2="{yp_below(0):.2f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{left_dim_x - 1:.2f}" y="{(y_base_top + yp_below(0)) / 2 + 1:.2f}"'
-        f' text-anchor="end" class="text" font-size="2.8">{bt:.1f}</text>'
-    )
-    # Wall depth
-    lines.append(
-        f'  <line x1="{left_dim_x - 3:.2f}" y1="{yp_below(0):.2f}" x2="{left_dim_x - 3:.2f}" y2="{yp_below(wall_h):.2f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{left_dim_x - 4:.2f}" y="{(yp_below(0) + yp_below(wall_h)) / 2 + 1:.2f}"'
-        f' text-anchor="end" class="text" font-size="2.8">{wall_h:.3f}</text>'
-    )
+    def line(x1, y1, x2, y2, **attrs) -> str:
+        a = " ".join(f'{k}="{v}"' for k, v in attrs.items())
+        return (f'<line x1="{fx(x1)}" y1="{fy(y1)}" '
+                f'x2="{fx(x2)}" y2="{fy(y2)}" {a}/>')
 
-    # ── Radial dimension lines (bottom area) ─────────────────────────
-    bot_y1 = yp_below(wall_h) + 9.0
-    bot_y2 = bot_y1 + 8.0
-    bot_y3 = bot_y2 + 8.0
+    def text(x, y, msg, anchor="middle", size=2.2, bold=False, color="#333") -> str:
+        fw = "bold" if bold else "normal"
+        return (f'<text x="{fx(x)}" y="{fy(y)}" text-anchor="{anchor}" '
+                f'font-family="sans-serif" font-size="{size}" '
+                f'font-weight="{fw}" fill="{color}">{msg}</text>')
 
-    # Cover wall width (inner side)
-    lines.append(
-        f'  <line x1="{xp(0):.2f}" y1="{bot_y1:.2f}" x2="{xp(steel_start):.2f}" y2="{bot_y1:.2f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{xp(steel_start / 2):.2f}" y="{bot_y1 - 1.5:.2f}"'
-        f' text-anchor="middle" class="text" font-size="2.8">{cw:.3f} (1/8 in)</text>'
-    )
+    def rect(x, y, w, h, fill, opacity=0.65, stroke="none") -> str:
+        return (f'<rect x="{fx(x)}" y="{fy(y)}" width="{w:.3f}" height="{h:.3f}" '
+                f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}"/>')
 
-    # Steel ring width
-    lines.append(
-        f'  <line x1="{xp(steel_start):.2f}" y1="{bot_y2:.2f}" x2="{xp(steel_end):.2f}" y2="{bot_y2:.2f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{xp((steel_start + steel_end) / 2):.2f}" y="{bot_y2 - 1.5:.2f}"'
-        f' text-anchor="middle" class="text" font-size="2.8">{steel_end - steel_start:.2f} mm (1 in) steel ring</text>'
-    )
+    parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        (f'<svg xmlns="http://www.w3.org/2000/svg" '
+         f'width="{nw:.1f}mm" height="{nh:.1f}mm" '
+         f'viewBox="{nx:.3f} {ny:.3f} {nw:.3f} {nh:.3f}">'),
+        # Arrow marker defs
+        '<defs>',
+        '  <marker id="a1" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">',
+        '    <path d="M0,0 L5,2.5 L0,5 Z" fill="#555"/></marker>',
+        '  <marker id="a2" markerWidth="5" markerHeight="5" refX="1" refY="2.5" orient="auto">',
+        '    <path d="M5,0 L0,2.5 L5,5 Z" fill="#555"/></marker>',
+        '</defs>',
+    ]
 
-    # Total cover span (repeated at bottom for clarity)
-    lines.append(
-        f'  <line x1="{xp(0):.2f}" y1="{bot_y3:.2f}" x2="{xp(cover_span):.2f}" y2="{bot_y3:.2f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{xp(cover_span / 2):.2f}" y="{bot_y3 - 1.5:.2f}"'
-        f' text-anchor="middle" class="text" font-size="2.8">cover: {cid:.3f} in ID to {cod:.3f} in OD</text>'
-    )
+    # ── Title ─────────────────────────────────────────────────────────
+    parts.append(text((cir + cor) / 2, ny + 4,
+                      "10 in half-ring cover \u2014 radial cross-section (1:1 scale)",
+                      size=3.2, bold=True, color="#222"))
+    parts.append(text((cir + cor) / 2, ny + 8,
+                      f"ID {cid:.3f} in / OD {cod:.3f} in  \u2022  "
+                      f"all dimensions in mm unless noted",
+                      size=2.2, color="#666"))
 
-    # ── Callout: snap detail ──────────────────────────────────────────
-    snap_callout_x = xp(steel_start + snap / 2)
-    snap_callout_y = yp_below(wall_h + snap)
-    lines.append(
-        f'  <path d="M {snap_callout_x:.2f},{snap_callout_y:.2f} L {xp(-1):.2f},{snap_callout_y + 8:.2f}" class="callout"/>'
-    )
-    lines.append(
-        f'  <text x="{xp(-1.5):.2f}" y="{snap_callout_y + 10:.2f}" text-anchor="end" class="note">'
-        f'0.2 mm snap on both inner and outer walls</text>'
-    )
+    # ── Zone fill bands (inside the cavity) ───────────────────────────
+    # Magnet clearance zone (z1→z2, full cavity width)
+    parts.append(rect(sir, z1, sor - sir, z2 - z1, "#4a90e2", opacity=0.25))
+    # Magnet reference body (z1→z1+mt, mir→mor)
+    parts.append(rect(mir, z1, mor - mir, mt, "#2e6bb0", opacity=0.55))
+    # Steel ring reference (z2→z3, sir→sor)
+    parts.append(rect(sir, z2, sor - sir, z3 - z2, "#666", opacity=0.55))
+    # Steel zone label
+    parts.append(text((sir + sor) / 2, z2 + (z3 - z2) / 2 + 0.7,
+                      "steel ring (ref)", size=1.8, color="white"))
+    # Magnet label
+    parts.append(text((mir + mor) / 2, z1 + mt / 2 + 0.6,
+                      "magnet (ref)", size=1.8, color="white"))
 
-    return svg_footer(lines)
+    # ── Geometry (ExportSVG output) ────────────────────────────────────
+    parts.append(geom_xml)
+
+    # ── Horizontal zone boundary lines ────────────────────────────────
+    for z_val, dash in [(z1, "1,1.5"), (z2, "1,1.5"), (z3, "1,1.5"),
+                        (z4, "0.5,1"), (z5, "0.5,1")]:
+        parts.append(
+            f'<line x1="{fx(cir - 1)}" y1="{fy(z_val)}" '
+            f'x2="{fx(cor + 1)}" y2="{fy(z_val)}" '
+            f'stroke="#aaa" stroke-width="0.25" stroke-dasharray="{dash}"/>'
+        )
+
+    # ── Left-side Z zone brackets ──────────────────────────────────────
+    bx  = cir - 3     # bracket x
+    lx  = cir - 4     # label x
+    zones = [
+        (0,  z1, f"base  {z1:.1f}"),
+        (z1, z2, f"magnet  {z2 - z1:.1f}"),
+        (z2, z3, f"steel  {z3 - z2:.3f}"),
+        (z3, z4, f"chamfer  {z4 - z3:.1f}"),
+        (z4, z5, f"snap  {z5 - z4:.1f}"),
+    ]
+    for z_bot, z_top, label in zones:
+        mid = (z_bot + z_top) / 2
+        tick = 0.8
+        parts.append(line(bx - tick, z_bot, bx, z_bot,
+                          stroke="#555", **{"stroke-width": "0.35"}))
+        parts.append(line(bx - tick, z_top, bx, z_top,
+                          stroke="#555", **{"stroke-width": "0.35"}))
+        parts.append(line(bx, z_bot, bx, z_top,
+                          stroke="#555", **{"stroke-width": "0.35"}))
+        parts.append(text(lx, mid + 0.7, label, anchor="end", size=2.0))
+
+    # ── Top radial tick marks and labels ──────────────────────────────
+    tick_top = vb_y - 0.5
+    radials = [
+        (cir, f"cover ID\n{cid:.3f} in"),
+        (sir, f"steel ID\n6.000 in"),
+        (sor, f"steel OD\n8.000 in"),
+        (cor, f"cover OD\n{cod:.3f} in"),
+    ]
+    for rx, rlabel in radials:
+        parts.append(line(rx, 0.0, rx, tick_top,
+                          stroke="#555", **{"stroke-width": "0.3",
+                                           "stroke-dasharray": "0.5,0.8"}))
+        lines_list = rlabel.split("\n")
+        for i, ln in enumerate(lines_list):
+            ty = tick_top - 1.5 - (len(lines_list) - 1 - i) * 2.8
+            parts.append(text(rx, ty, ln, size=2.0))
+
+    # ── Bottom wall-width dimension arrows ─────────────────────────────
+    arrow_y = vb_y + vb_h + 4
+    for x1v, x2v, lbl in [
+        (cir, sir, f"{cw:.3f} mm (⅛ in)"),
+        (sor, cor, f"{cw:.3f} mm (⅛ in)"),
+    ]:
+        mx = (x1v + x2v) / 2
+        parts.append(
+            f'<line x1="{fx(x1v)}" y1="{fy(arrow_y)}" '
+            f'x2="{fx(x2v)}" y2="{fy(arrow_y)}" '
+            f'stroke="#555" stroke-width="0.4" '
+            f'marker-start="url(#a2)" marker-end="url(#a1)"/>'
+        )
+        parts.append(text(mx, arrow_y + 3.5, lbl, size=2.0))
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+
 
 
 def generate_top_view_svg(data: dict) -> str:
@@ -556,7 +568,7 @@ def generate_perspective_svg(data: dict) -> str:
     sy = 0.95
     ox = 132.5
     oy = 124.0
-    thickness = data["base_thickness"] + data["magnet_thickness"] + data["steel_thickness"] + data["steel_wall_extra"]
+    thickness = data["z5"]   # total axial height = snap tip
 
     lines.append(f'  <text x="8" y="9" class="label">10 in Half Ring Over Magnets — top-side perspective</text>')
     lines.append(
