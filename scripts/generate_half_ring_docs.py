@@ -153,10 +153,10 @@ def generate_cross_section_svg(data: dict) -> str:
     height = 170.0
     lines = svg_header(width, height, '10 in half-ring cover — radial cross section')
 
-    x0 = 30.0
-    y_base_bottom = 120.0
-    sx = 3.4
-    sy = 3.4
+    x0 = 58.0
+    y_base_bottom = 132.0
+    sx = 5.8
+    sy = 5.8
 
     def x(mm: float) -> float:
         return x0 + mm * sx
@@ -240,28 +240,28 @@ def generate_cross_section_svg(data: dict) -> str:
         f'  <text x="{x(cover_span / 2):.3f}" y="{y(9.45):.3f}" text-anchor="middle" class="text" font-size="3.1">{(cover_span / INCH):.3f} in radial base span = {cover_span:.2f} mm</text>'
     )
     lines.append(
-        f'  <line x1="{x(-2.2):.3f}" y1="{y(0):.3f}" x2="{x(-2.2):.3f}" y2="{y(base_top):.3f}" class="dim"/>'
+        f'  <line x1="{x(-2.0):.3f}" y1="{y(0):.3f}" x2="{x(-2.0):.3f}" y2="{y(base_top):.3f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="{x(-2.9):.3f}" y="{y(0.62):.3f}" text-anchor="end" class="text" font-size="3.0">1.0</text>'
+        f'  <text x="{x(-2.6):.3f}" y="{y(0.62):.3f}" text-anchor="end" class="text" font-size="3.0">1.0</text>'
     )
     lines.append(
-        f'  <line x1="{x(-4.6):.3f}" y1="{y(base_top):.3f}" x2="{x(-4.6):.3f}" y2="{y(magnet_top):.3f}" class="dim"/>'
+        f'  <line x1="{x(-4.0):.3f}" y1="{y(base_top):.3f}" x2="{x(-4.0):.3f}" y2="{y(magnet_top):.3f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="{x(-5.3):.3f}" y="{y(base_top + 1.1):.3f}" text-anchor="end" class="text" font-size="3.0">2.0</text>'
+        f'  <text x="{x(-4.6):.3f}" y="{y(base_top + 1.1):.3f}" text-anchor="end" class="text" font-size="3.0">2.0</text>'
     )
     lines.append(
-        f'  <line x1="{x(-7.0):.3f}" y1="{y(magnet_top):.3f}" x2="{x(-7.0):.3f}" y2="{y(steel_top):.3f}" class="dim"/>'
+        f'  <line x1="{x(-6.0):.3f}" y1="{y(magnet_top):.3f}" x2="{x(-6.0):.3f}" y2="{y(steel_top):.3f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="{x(-7.7):.3f}" y="{y(magnet_top + 1.8):.3f}" text-anchor="end" class="text" font-size="3.0">3.175</text>'
+        f'  <text x="{x(-6.6):.3f}" y="{y(magnet_top + 1.8):.3f}" text-anchor="end" class="text" font-size="3.0">3.175</text>'
     )
     lines.append(
-        f'  <line x1="{x(-9.4):.3f}" y1="{y(base_top):.3f}" x2="{x(-9.4):.3f}" y2="{y(wall_top):.3f}" class="dim"/>'
+        f'  <line x1="{x(-8.1):.3f}" y1="{y(base_top):.3f}" x2="{x(-8.1):.3f}" y2="{y(wall_top):.3f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="{x(-10.0):.3f}" y="{y(base_top + 2.2):.3f}" text-anchor="end" class="text" font-size="3.0">4.175 wall depth</text>'
+        f'  <text x="{x(-8.7):.3f}" y="{y(base_top + 2.2):.3f}" text-anchor="end" class="text" font-size="3.0">4.175 wall depth</text>'
     )
     lines.append(
         f'  <line x1="{x(magnet_start - data["magnet_wall"]):.3f}" y1="{y(7.1):.3f}" x2="{x(magnet_start):.3f}" y2="{y(7.1):.3f}" class="dim"/>'
@@ -284,19 +284,19 @@ def generate_cross_section_svg(data: dict) -> str:
 
     # Radius callouts.
     lines.append(
-        f'  <path d="M {x(steel_start):.3f},{y(steel_top + 0.8):.3f} L {x(steel_start - 3.7):.3f},{y(steel_top + 2.0):.3f}" class="callout"/>'
+        f'  <path d="M {x(steel_start):.3f},{y(steel_top + 0.8):.3f} L {x(cover_span + 1.5):.3f},{y(steel_top + 1.8):.3f}" class="callout"/>'
     )
     lines.append(
-        f'  <text x="{x(steel_start - 4.4):.3f}" y="{y(steel_top + 2.2):.3f}" text-anchor="end" class="note">6 in ID steel starts at +{steel_start:.2f} mm from cover ID</text>'
+        f'  <text x="{x(cover_span + 2.1):.3f}" y="{y(steel_top + 2.1):.3f}" class="note">6 in ID steel starts +{steel_start:.2f} mm from cover ID</text>'
     )
     lines.append(
-        f'  <path d="M {x(magnet_start):.3f},{y(base_top + 0.4):.3f} L {x(magnet_start - 7.0):.3f},{y(base_top - 1.0):.3f}" class="callout"/>'
+        f'  <path d="M {x(magnet_start):.3f},{y(base_top + 0.4):.3f} L {x(2.2):.3f},{y(base_top - 2.1):.3f}" class="callout"/>'
     )
     lines.append(
-        f'  <text x="{x(magnet_start - 7.6):.3f}" y="{y(base_top - 1.2):.3f}" text-anchor="end" class="note">magnet band centered on steel ring</text>'
+        f'  <text x="{x(2.0):.3f}" y="{y(base_top - 2.3):.3f}" text-anchor="end" class="note">magnet band centered on steel ring</text>'
     )
     lines.append(
-        f'  <text x="{x((steel_start + steel_end) / 2):.3f}" y="{y(wall_top + 2.4):.3f}" text-anchor="middle" class="note">steel-capture walls are shown explicitly on both sides of the 1/8 in steel ring</text>'
+        f'  <text x="{x((steel_start + steel_end) / 2):.3f}" y="{y(-1.6):.3f}" text-anchor="middle" class="note">steel-capture walls shown on both sides of the 1/8 in steel ring</text>'
     )
     lines.append(
         f'  <text x="8" y="160" class="note">Stack shown to scale from base upward: 1.0 mm base, 2.0 mm magnet layer, 3.175 mm steel thickness, 1.0 mm extra wall extension, and 0.2 mm snap overhang.</text>'
