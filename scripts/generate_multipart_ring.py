@@ -11,6 +11,8 @@ from dataclasses import dataclass
 MM_PER_INCH = 25.4
 MIN_OPEN_HOLE_DIAMETER_MM = 4.0 * MM_PER_INCH
 MAX_PRINTER_RADIUS_MM = 10.0 * MM_PER_INCH
+MIN_MOUNT_PLATE_MAGNETS = 1
+MAGNET_RADIAL_OFFSET_MM = 1.0
 
 
 @dataclass(frozen=True)
@@ -31,7 +33,7 @@ class MultipartEncoderSpec:
     output_file: str = "multipart_encoder_ring.scad"
 
     def __post_init__(self) -> None:
-        if self.n_magnets < 2 or self.n_magnets % 2:
+        if self.n_magnets < 2 or self.n_magnets % 2 != 0:
             raise ValueError("n_magnets must be an even integer >= 2")
         if self.magnet_width_mm <= 0 or self.magnet_length_mm <= 0 or self.magnet_thickness_mm <= 0:
             raise ValueError("magnet dimensions must be positive")
@@ -39,11 +41,12 @@ class MultipartEncoderSpec:
             raise ValueError("steel ring diameters must be positive")
         if self.steel_outer_diameter_mm <= self.steel_inner_diameter_mm:
             raise ValueError("steel_outer_diameter_mm must be larger than steel_inner_diameter_mm")
+        ring_outer_radius_mm = self.steel_outer_diameter_mm / 2.0
         if self.open_hole_diameter_mm < MIN_OPEN_HOLE_DIAMETER_MM:
             raise ValueError("open_hole_diameter_mm must be at least 4 inches (101.6 mm)")
         if self.open_hole_diameter_mm > self.steel_inner_diameter_mm:
             raise ValueError("open_hole_diameter_mm must fit inside the steel ring inner diameter")
-        if self.ring_outer_radius_mm > MAX_PRINTER_RADIUS_MM:
+        if ring_outer_radius_mm > MAX_PRINTER_RADIUS_MM:
             raise ValueError("ring outer radius exceeds 10 inch Bambu-printer radius limit")
         if self.assembly_gap_mm <= 0:
             raise ValueError("assembly_gap_mm must be positive")
@@ -123,8 +126,10 @@ class MultipartEncoderScadGenerator:
         seg_sweep = 180.0 - s.assembly_gap_deg
         primary_start = s.assembly_gap_deg / 2.0
         secondary_start = 90.0 + s.assembly_gap_deg / 2.0
-        magnet_r = s.ring_inner_radius_mm + 1.0
-        mount_plate_magnet_count = max(1, round(s.n_magnets * (s.mount_plate_arc_deg / 360.0)))
+        mount_plate_magnet_count = max(
+            MIN_MOUNT_PLATE_MAGNETS,
+            round(s.n_magnets * (s.mount_plate_arc_deg / 360.0)),
+        )
         mount_step = s.mount_plate_arc_deg / mount_plate_magnet_count
         mount_start = -s.mount_plate_arc_deg / 2.0
         primary_indices = self._magnet_indices_for_segment(primary_start, seg_sweep)
@@ -167,7 +172,7 @@ class MultipartEncoderScadGenerator:
             "    difference() {",
             f"        ring_segment(start_angle, {seg_sweep:.5f}, 0, ring_thickness, ring_inner_radius, ring_outer_radius);",
             "        for (i = [0 : n_magnets - 1]) {",
-            "            rotate([0, 0, i * (360 / n_magnets)]) magnet_pocket(ring_inner_radius + 1.0, ring_thickness - magnet_thickness);",
+            f"            rotate([0, 0, i * (360 / n_magnets)]) magnet_pocket(ring_inner_radius + {MAGNET_RADIAL_OFFSET_MM:.1f}, ring_thickness - magnet_thickness);",
             "        }",
             "    }",
             "    seam_bridge_lug(start_angle);",

@@ -31,6 +31,7 @@ class MultipartScadOutputTests(unittest.TestCase):
         scad = MultipartEncoderScadGenerator(spec).generate()
         MultipartOutputValidator.validate_scad(scad, spec)
         self.assertIn("module u_mount_plate()", scad)
+        self.assertIn("gap_bridge_plate(0);", scad)
         self.assertIn("gap_bridge_plate(180);", scad)
 
     def test_validator_rejects_missing_tokens(self):
