@@ -287,7 +287,7 @@ def generate_cross_section_svg(data: dict) -> str:
         f'  <path d="M {x(steel_start):.3f},{y(steel_top + 0.8):.3f} L {x(steel_start - 3.7):.3f},{y(steel_top + 2.0):.3f}" class="callout"/>'
     )
     lines.append(
-        f'  <text x="{x(steel_start - 4.4):.3f}" y="{y(steel_top + 2.2):.3f}" text-anchor="end" class="note">6 in ID steel starts at +{steel_start:.3f} mm from cover ID</text>'
+        f'  <text x="{x(steel_start - 4.4):.3f}" y="{y(steel_top + 2.2):.3f}" text-anchor="end" class="note">6 in ID steel starts at +{steel_start:.2f} mm from cover ID</text>'
     )
     lines.append(
         f'  <path d="M {x(magnet_start):.3f},{y(base_top + 0.4):.3f} L {x(magnet_start - 7.0):.3f},{y(base_top - 1.0):.3f}" class="callout"/>'

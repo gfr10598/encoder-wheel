@@ -48,7 +48,7 @@
   <line x1="50.910" y1="97.985" x2="51.590" y2="97.985" class="dim"/>
   <text x="51.250" y="96.795" text-anchor="middle" class="text" font-size="3.0">0.2 snap lip</text>
   <path d="M 40.795,96.285 L 28.215,92.205" class="callout"/>
-  <text x="25.835" y="91.525" text-anchor="end" class="note">6 in ID steel starts at +3.175 mm from cover ID</text>
+  <text x="25.835" y="91.525" text-anchor="end" class="note">6 in ID steel starts at +3.17 mm from cover ID</text>
   <path d="M 49.975,115.240 L 26.175,120.000" class="callout"/>
   <text x="24.135" y="120.680" text-anchor="end" class="note">magnet band centered on steel ring</text>
   <text x="83.975" y="94.245" text-anchor="middle" class="note">steel-capture walls are shown explicitly on both sides of the 1/8 in steel ring</text>
