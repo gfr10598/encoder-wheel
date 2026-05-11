@@ -26,10 +26,12 @@ methods without re-calculating anything.
 ```
 encoder-wheel/
 ├── scripts/
-│   ├── common.py           shared geometry calculations
-│   ├── generate_laser.py   → SVG for laser cutting
-│   ├── generate_cnc.py     → DXF for CNC milling
-│   └── generate_3d.py      → OpenSCAD for 3-D printing
+│   ├── common.py                   shared geometry calculations
+│   ├── generate_laser.py           → SVG for laser cutting
+│   ├── generate_cnc.py             → DXF for CNC milling
+│   ├── generate_3d.py              → OpenSCAD for 3-D printing
+│   └── generate_half_ring_docs.py  → SVG design-reference documentation
+├── AGENTS.md                       AI-agent-facing design notes
 ├── examples/
 │   ├── encoder_wheel_12pole_laser.svg
 │   ├── encoder_wheel_24pole_laser.svg
@@ -43,7 +45,29 @@ encoder-wheel/
 └── images/
     ├── top_view.svg
     ├── cross_section.svg
-    └── geometry.svg
+    ├── geometry.svg
+    ├── half_ring_over_magnets_cross_section.svg
+    ├── half_ring_over_magnets_top_view.svg
+    └── half_ring_over_magnets_perspective.svg
+```
+
+---
+
+## Half-ring cover design notes
+
+The repository also includes a documentation-only capture of the requested
+**10 in half-ring over magnets** concept for future CAD work:
+
+- agent/design notes: [`AGENTS.md`](AGENTS.md)
+- generated reference drawings:
+  - `images/half_ring_over_magnets_cross_section.svg`
+  - `images/half_ring_over_magnets_top_view.svg`
+  - `images/half_ring_over_magnets_perspective.svg`
+
+Regenerate those drawings with:
+
+```bash
+python scripts/generate_half_ring_docs.py
 ```
 
 ---
