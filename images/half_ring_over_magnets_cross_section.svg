@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="265.0mm" height="150.0mm" viewBox="0 0 265.0 150.0">
+<svg xmlns="http://www.w3.org/2000/svg" width="300.0mm" height="170.0mm" viewBox="0 0 300.0 170.0">
   <title>10 in half-ring cover — radial cross section</title>
   <defs>
     <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
@@ -16,40 +16,41 @@
       .note { font-family: sans-serif; fill: #555; font-size: 2.8px; }
     </style>
   </defs>
-  <rect width="265.0" height="150.0" fill="white"/>
-  <text x="8" y="9" class="label">10 in Half Ring Over Magnets — radial cross section through one magnet</text>
-  <text x="8" y="14.5" class="note">Top cover shown in gray, magnet in blue, 1/8 in steel backing half ring in dark gray. Dimensions are design intent in mm.</text>
-  <rect x="24.000" y="40.000" width="198.120" height="15.000" fill="#d9d9d9" stroke="#666" stroke-width="0.5"/>
-  <rect x="76.104" y="55.000" width="7.956" height="30.000" fill="#c7c7c7" stroke="#666" stroke-width="0.4"/>
-  <rect x="162.060" y="55.000" width="7.956" height="30.000" fill="#c7c7c7" stroke="#666" stroke-width="0.4"/>
-  <rect x="73.530" y="55.000" width="12.382" height="62.625" fill="#b9b9b9" stroke="#666" stroke-width="0.4"/>
-  <rect x="160.207" y="55.000" width="12.382" height="62.625" fill="#b9b9b9" stroke="#666" stroke-width="0.4"/>
-  <rect x="85.132" y="115.375" width="0.780" height="2.200" fill="#8f8f8f" stroke="#666" stroke-width="0.3"/>
-  <rect x="160.207" y="115.375" width="0.780" height="2.200" fill="#8f8f8f" stroke="#666" stroke-width="0.3"/>
-  <rect x="84.060" y="55.000" width="78.000" height="30.000" fill="#4a90d9" stroke="#2e6bb0" stroke-width="0.5"/>
-  <rect x="73.530" y="85.000" width="99.060" height="47.625" fill="#8a8a8a" stroke="#555" stroke-width="0.5"/>
-  <text x="123.060" y="49.300" text-anchor="middle" class="text" font-size="3.2">1.0 mm base, 50.8 mm radial span (5 in ID to 9 in OD)</text>
-  <text x="123.060" y="73.000" text-anchor="middle" font-size="3.2" fill="white" font-family="sans-serif">20×2 mm magnet section</text>
-  <text x="123.060" y="108.250" text-anchor="middle" font-size="3.2" fill="white" font-family="sans-serif">1/8 in steel ring</text>
-  <line x1="24.000" y1="146.500" x2="222.120" y2="146.500" class="dim"/>
-  <text x="123.060" y="140.500" text-anchor="middle" class="text" font-size="3.1">2.000 in radial base span = 50.80 mm</text>
-  <line x1="14.640" y1="40.000" x2="14.640" y2="55.000" class="dim"/>
-  <text x="11.910" y="49.300" text-anchor="end" class="text" font-size="3.0">1.0</text>
-  <line x1="4.500" y1="55.000" x2="4.500" y2="85.000" class="dim"/>
-  <text x="1.770" y="71.500" text-anchor="end" class="text" font-size="3.0">2.0</text>
-  <line x1="-6.030" y1="85.000" x2="-6.030" y2="132.625" class="dim"/>
-  <text x="-8.760" y="112.000" text-anchor="end" class="text" font-size="3.0">3.175</text>
-  <line x1="-16.560" y1="55.000" x2="-16.560" y2="117.625" class="dim"/>
-  <text x="-18.900" y="88.000" text-anchor="end" class="text" font-size="3.0">4.175 wall depth</text>
-  <line x1="76.104" y1="130.000" x2="84.060" y2="130.000" class="dim"/>
-  <text x="80.082" y="124.000" text-anchor="middle" class="text" font-size="3.0">2.04 wall</text>
-  <line x1="73.530" y1="164.500" x2="85.912" y2="164.500" class="dim"/>
-  <text x="79.721" y="158.500" text-anchor="middle" class="text" font-size="3.0">3.175 wall</text>
-  <line x1="85.132" y1="130.375" x2="85.912" y2="130.375" class="dim"/>
-  <text x="85.522" y="125.125" text-anchor="middle" class="text" font-size="3.0">0.2 snap lip</text>
-  <path d="M 73.530,144.625 L 57.930,158.125" class="callout"/>
-  <text x="55.590" y="161.875" text-anchor="end" class="note">6 in ID steel starts at +12.7 mm from cover ID</text>
-  <path d="M 84.060,82.000 L 56.760,70.000" class="callout"/>
-  <text x="54.420" y="68.500" text-anchor="end" class="note">magnet band shown centered on steel ring</text>
-  <text x="8" y="140" class="note">Requested stack from top to bottom: 1.0 mm cover base, 2.0 mm magnet cavity, 3.175 mm steel cavity, plus 1.0 mm extra wall extension and 0.2 mm snap overhang.</text>
+  <rect width="300.0" height="170.0" fill="white"/>
+  <text x="8" y="9" class="label">Half Ring Over Magnets — radial cross section through one magnet</text>
+  <text x="8" y="14.5" class="note">To-scale section (same X/Y scale): printed cover in gray, magnet in blue, steel backing ring in dark gray.</text>
+  <rect x="30.000" y="116.600" width="107.950" height="3.400" fill="#d9d9d9" stroke="#666" stroke-width="0.5"/>
+  <rect x="43.039" y="109.800" width="6.936" height="6.800" fill="#c7c7c7" stroke="#666" stroke-width="0.4"/>
+  <rect x="117.975" y="109.800" width="6.936" height="6.800" fill="#c7c7c7" stroke="#666" stroke-width="0.4"/>
+  <rect x="40.795" y="102.405" width="10.795" height="14.195" fill="#a8a8a8" stroke="#666" stroke-width="0.45"/>
+  <rect x="116.360" y="102.405" width="10.795" height="14.195" fill="#a8a8a8" stroke="#666" stroke-width="0.45"/>
+  <rect x="50.910" y="101.997" width="0.680" height="1.870" fill="#8f8f8f" stroke="#666" stroke-width="0.3"/>
+  <rect x="116.360" y="101.997" width="0.680" height="1.870" fill="#8f8f8f" stroke="#666" stroke-width="0.3"/>
+  <rect x="49.975" y="109.800" width="68.000" height="6.800" fill="#4a90d9" stroke="#2e6bb0" stroke-width="0.5"/>
+  <rect x="40.795" y="99.005" width="86.360" height="10.795" fill="#8a8a8a" stroke="#555" stroke-width="0.5"/>
+  <text x="83.975" y="117.960" text-anchor="middle" class="text" font-size="3.1">1.0 mm base, 31.75 mm radial span (5.75 in ID to 8.25 in OD)</text>
+  <text x="83.975" y="112.520" text-anchor="middle" font-size="3.2" fill="white" font-family="sans-serif">20×2 mm magnet section</text>
+  <text x="83.975" y="104.530" text-anchor="middle" font-size="3.2" fill="white" font-family="sans-serif">1/8 in steel ring</text>
+  <line x1="30.000" y1="89.400" x2="137.950" y2="89.400" class="dim"/>
+  <text x="83.975" y="87.870" text-anchor="middle" class="text" font-size="3.1">1.250 in radial base span = 31.75 mm</text>
+  <line x1="22.520" y1="120.000" x2="22.520" y2="116.600" class="dim"/>
+  <text x="20.140" y="117.892" text-anchor="end" class="text" font-size="3.0">1.0</text>
+  <line x1="14.360" y1="116.600" x2="14.360" y2="109.800" class="dim"/>
+  <text x="11.980" y="112.860" text-anchor="end" class="text" font-size="3.0">2.0</text>
+  <line x1="6.200" y1="109.800" x2="6.200" y2="99.005" class="dim"/>
+  <text x="3.820" y="103.680" text-anchor="end" class="text" font-size="3.0">3.175</text>
+  <line x1="-1.960" y1="116.600" x2="-1.960" y2="102.405" class="dim"/>
+  <text x="-4.000" y="109.120" text-anchor="end" class="text" font-size="3.0">4.175 wall depth</text>
+  <line x1="43.039" y1="95.860" x2="49.975" y2="95.860" class="dim"/>
+  <text x="46.507" y="94.670" text-anchor="middle" class="text" font-size="3.0">2.04 wall</text>
+  <line x1="40.795" y1="84.980" x2="51.590" y2="84.980" class="dim"/>
+  <text x="46.192" y="83.790" text-anchor="middle" class="text" font-size="3.0">3.175 wall</text>
+  <line x1="50.910" y1="97.985" x2="51.590" y2="97.985" class="dim"/>
+  <text x="51.250" y="96.795" text-anchor="middle" class="text" font-size="3.0">0.2 snap lip</text>
+  <path d="M 40.795,96.285 L 28.215,92.205" class="callout"/>
+  <text x="25.835" y="91.525" text-anchor="end" class="note">6 in ID steel starts at +3.175 mm from cover ID</text>
+  <path d="M 49.975,115.240 L 26.175,120.000" class="callout"/>
+  <text x="24.135" y="120.680" text-anchor="end" class="note">magnet band centered on steel ring</text>
+  <text x="83.975" y="94.245" text-anchor="middle" class="note">steel-capture walls are shown explicitly on both sides of the 1/8 in steel ring</text>
+  <text x="8" y="160" class="note">Stack shown to scale from base upward: 1.0 mm base, 2.0 mm magnet layer, 3.175 mm steel thickness, 1.0 mm extra wall extension, and 0.2 mm snap overhang.</text>
 </svg>

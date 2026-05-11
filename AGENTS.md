@@ -48,7 +48,7 @@ reference diagrams for future agent or CAD work.
 
 | Item | Value |
 |------|-------|
-| Printed cover half ring | 9.000 in OD, 5.000 in ID |
+| Printed cover half ring | 8.250 in OD, 5.750 in ID |
 | Steel backing half ring | 8.000 in OD, 6.000 in ID, 1/8 in thick |
 | Magnet size | 20 × 5 × 2 mm |
 | Magnet count | 90 total, 45 per half ring |
@@ -63,9 +63,9 @@ reference diagrams for future agent or CAD work.
 
 | Derived item | Value |
 |--------------|-------|
-| Printed cover inner radius | 63.50 mm |
-| Printed cover outer radius | 114.30 mm |
-| Cover radial span | 50.80 mm (2.000 in) |
+| Printed cover inner radius | 73.03 mm |
+| Printed cover outer radius | 104.78 mm |
+| Cover radial span | 31.75 mm (1.250 in) |
 | Steel ring inner radius | 76.20 mm |
 | Steel ring outer radius | 101.60 mm |
 | Steel ring radial span | 25.40 mm |
@@ -107,7 +107,7 @@ That preserves the requested “few mm to spare” inside the 8 in outer diamete
 
 The cross-section diagrams show the requested stack from the top cover downward:
 
-1. **1.0 mm base skin** across the full 2 in radial span
+1. **1.0 mm base skin** across the full 1.25 in radial span
 2. **2.04 mm magnet-stop walls** at the inner and outer ends of the 20 mm magnet
 3. **1/8 in steel-capture walls** around the 1/8 in steel ring
 4. **1.0 mm extra wall extension** beyond the steel cavity
