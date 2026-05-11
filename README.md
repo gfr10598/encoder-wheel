@@ -33,8 +33,11 @@ encoder-wheel/
 ├── examples/
 │   ├── encoder_wheel_12pole_laser.svg
 │   ├── encoder_wheel_24pole_laser.svg
+│   ├── encoder_wheel_108pole_laser.svg
 │   ├── encoder_wheel_12pole_cnc.dxf
+│   ├── encoder_wheel_108pole_cnc.dxf
 │   ├── encoder_wheel_12pole_3d.scad        (back plate + tabs)
+│   ├── encoder_wheel_108pole_3d.scad       (back plate + tabs)
 │   ├── encoder_wheel_12pole_3d_frontface.scad
 │   └── encoder_wheel_12pole_3d_steelclip.scad
 └── images/
@@ -91,6 +94,7 @@ r_inner_min = (w / 2) / tan(π / N)
 | 24        | 18.99 mm      | 38.99 mm                    | 84.0 mm                |
 | 36        | 28.69 mm      | 48.69 mm                    | 103.4 mm               |
 | 48        | 38.41 mm      | 58.41 mm                    | 122.8 mm               |
+| 108       | 85.92 mm      | 105.92 mm                   | 217.8 mm               |
 
 You can specify a larger `--inner-radius` to increase the disc size (e.g., to
 fit a specific shaft hub), but you cannot go smaller than `r_inner_min`.
@@ -276,10 +280,13 @@ Pre-generated example files are in the `examples/` directory:
 |------|-------------|
 | `encoder_wheel_12pole_laser.svg` | 12-pole laser template |
 | `encoder_wheel_24pole_laser.svg` | 24-pole laser template |
+| `encoder_wheel_108pole_laser.svg` | 108-pole laser template |
 | `encoder_wheel_12pole_cnc.dxf` | 12-pole CNC DXF |
+| `encoder_wheel_108pole_cnc.dxf` | 108-pole CNC DXF |
 | `encoder_wheel_12pole_3d.scad` | 12-pole 3-D print (back plate + tabs) |
-| `encoder_wheel_12pole_3d_frontface.scad` | … with smooth front face |
-| `encoder_wheel_12pole_3d_steelclip.scad` | … with steel-clip slots, no back plate |
+| `encoder_wheel_108pole_3d.scad` | 108-pole 3-D print (back plate + tabs) |
+| `encoder_wheel_12pole_3d_frontface.scad` | 12-pole with smooth front face |
+| `encoder_wheel_12pole_3d_steelclip.scad` | 12-pole with steel-clip slots, no back plate |
 
 Regenerate any file by running the corresponding script with the desired
 parameters.

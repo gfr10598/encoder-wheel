@@ -5,7 +5,7 @@ Generate an SVG file for laser-cutting an encoder-wheel template.
 The output is a 2-D flat template with:
   • An outer ring boundary (the disc edge)
   • Rectangular slots for the magnets
-  • A centre bore hole
+  • A center bore hole
   • (Optionally) a reference engraving circle at the inner radius
 
 The slots use a kerf-compensation offset so the magnet fits snugly after

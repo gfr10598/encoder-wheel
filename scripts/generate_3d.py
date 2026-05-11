@@ -307,20 +307,9 @@ def generate_scad(
     L.append(f"            cylinder(h = {total_h:.3f} * 3, r = center_bore, center = true, $fn = 64);")
     L.append("")
     if not back_plate:
-        L.append("            // No back plate: remove material below the pockets too")
-        L.append(f"            cylinder(h = {total_h:.3f} * 3, r = r_frame + 1, center = true, $fn = 128);")
-        L.append(f"            // Re-add the rim (cancel the full removal above)")
-        L.append("            // ... handled by the outer ring — see design note.")
-        # Actually this approach would remove everything. Let's handle it differently.
-        # When back_plate is False, the pockets go through the full height.
-        # The outer ring + spokes provide structure.
-        # We need to remove an annular region from r=0 to r=r_inner (the central void).
-        L.pop()  # remove last line
-        L.pop()  # remove the note
-        L.pop()  # remove "Re-add" comment
-        L.pop()  # remove the full-removal line
-        L.pop()  # remove "No back plate" comment
-        # Instead: just note that pockets have z_back=0
+        # When there is no back plate, z_back = 0 so the pocket subtraction
+        # already extends through the full frame height in both directions.
+        # No additional subtraction is needed; just add a comment for clarity.
         L.append("            // (No back plate: z_back = 0 so pockets open on bottom face too)")
 
     L.append("")
