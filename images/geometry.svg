@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100.0mm" height="80.0mm" viewBox="0 0 100.0 80.0">
+  <title>Inner-corners-touching geometry</title>
+  <rect width="100.0" height="80.0" fill="white"/>
+  <defs>
+    <marker id="arr" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+      <path d="M0,0 L5,2.5 L0,5 Z" fill="#555"/>
+    </marker>
+    <marker id="arr2" markerWidth="5" markerHeight="5" refX="1" refY="2.5" orient="auto">
+      <path d="M5,0 L0,2.5 L5,5 Z" fill="#555"/>
+    </marker>
+  </defs>
+  <g transform="translate(35,45)">
+    <polygon points="9.330,-2.500 9.330,2.500 29.330,2.500 29.330,-2.500" fill="#4a90d9" stroke="white" stroke-width="0.3" opacity="0.85"/>
+    <polygon points="9.330,2.500 6.830,6.830 24.151,16.830 26.651,12.500" fill="#2e6bb0" stroke="white" stroke-width="0.3" opacity="0.85"/>
+    <circle cx="0" cy="0" r="9.330" fill="none" stroke="#e74c3c" stroke-width="0.3" stroke-dasharray="1 0.5"/>
+    <circle cx="0" cy="0" r="0.5" fill="#333"/>
+    <circle cx="9.330" cy="2.500" r="0.6" fill="#e74c3c" stroke="none"/>
+    <line x1="9.330" y1="2.500" x2="19.3" y2="-5.5" stroke="#e74c3c" stroke-width="0.3"/>
+    <text x="19.8" y="-5.5" font-size="2.5" fill="#c0392b" font-family="sans-serif">touching</text>
+    <text x="19.8" y="-2.5" font-size="2.5" fill="#c0392b" font-family="sans-serif">corner</text>
+    <line x1="0" y1="0" x2="9.330" y2="0" stroke="#555" stroke-width="0.25" marker-end="url(#arr)" marker-start="url(#arr2)"/>
+    <text x="2.7" y="-1" font-size="2.3" fill="#333" font-family="sans-serif">r_min</text>
+    <line x1="9.330" y1="0" x2="9.330" y2="2.500" stroke="#27ae60" stroke-width="0.25" marker-end="url(#arr)" marker-start="url(#arr2)"/>
+    <text x="9.8" y="1.2" font-size="2.3" fill="#27ae60" font-family="sans-serif">w/2</text>
+    <path d="M 5.132,0 A 5.132,5.132 0 0,1 4.444,2.566" fill="none" stroke="#8e44ad" stroke-width="0.3"/>
+    <text x="5.5" y="1.5" font-size="2.3" fill="#8e44ad" font-family="sans-serif">π/N</text>
+    <text x="-33" y="30" font-size="2.6" fill="#333" font-family="monospace">r_min = (w/2) / tan(π/N)</text>
+    <text x="-33" y="35" font-size="2.2" fill="#555" font-family="monospace">N=12: r_min = 2.5 / tan(15°) ≈ 9.33 mm</text>
+  </g>
+<text x="4" y="7" font-size="3.5" fill="#222" font-family="sans-serif" font-weight="bold">Inner-Corners-Touching Geometry</text>
+<text x="4" y="12" font-size="2.5" fill="#555" font-family="sans-serif">Two adjacent magnets shown (N=12, w=5 mm).  The shared inner corner (red) determines r_min.</text>
+</svg>
