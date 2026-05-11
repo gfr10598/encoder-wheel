@@ -48,13 +48,13 @@ reference diagrams for future agent or CAD work.
 
 | Item | Value |
 |------|-------|
-| Printed cover half ring | 8.250 in OD, 5.750 in ID |
+| Printed cover half ring | 8.492 in OD, 5.508 in ID |
 | Steel backing half ring | 8.000 in OD, 6.000 in ID, 1/8 in thick |
 | Magnet size | 20 × 5 × 2 mm |
 | Magnet count | 90 total, 45 per half ring |
 | Base thickness | 1.0 mm |
 | Magnet pocket / end-wall thickness | 2.04 mm |
-| Steel capture walls | 1/8 in = 3.175 mm |
+| Steel capture walls | 1/4 in − 0.1 mm = 6.25 mm |
 | Extra wall height above steel cavity | 1.0 mm |
 | Snap overhang | 0.2 mm |
 | Outer retention tabs | 2.0 mm wide, 1.0 mm radial overhang |
@@ -63,9 +63,9 @@ reference diagrams for future agent or CAD work.
 
 | Derived item | Value |
 |--------------|-------|
-| Printed cover inner radius | 73.03 mm |
-| Printed cover outer radius | 104.78 mm |
-| Cover radial span | 31.75 mm (1.250 in) |
+| Printed cover inner radius | 69.95 mm |
+| Printed cover outer radius | 107.85 mm |
+| Cover radial span | 37.90 mm (1.492 in) |
 | Steel ring inner radius | 76.20 mm |
 | Steel ring outer radius | 101.60 mm |
 | Steel ring radial span | 25.40 mm |
@@ -107,9 +107,9 @@ That preserves the requested “few mm to spare” inside the 8 in outer diamete
 
 The cross-section diagrams show the requested stack from the top cover downward:
 
-1. **1.0 mm base skin** across the full 1.25 in radial span
+1. **1.0 mm base skin** across the full 1.492 in radial span
 2. **2.04 mm magnet-stop walls** at the inner and outer ends of the 20 mm magnet
-3. **1/8 in steel-capture walls** around the 1/8 in steel ring
+3. **6.25 mm steel-capture walls** around the 1/8 in steel ring
 4. **1.0 mm extra wall extension** beyond the steel cavity
 5. **0.2 mm snap overhang** at the lower edge so the steel half ring snaps in
 

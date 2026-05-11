@@ -17,8 +17,6 @@ INCH = 25.4
 
 def design_data() -> dict:
     """Return the fixed design inputs and derived dimensions."""
-    cover_inner_radius = 5.75 * INCH / 2.0
-    cover_outer_radius = 8.25 * INCH / 2.0
     steel_inner_radius = 6.0 * INCH / 2.0
     steel_outer_radius = 8.0 * INCH / 2.0
 
@@ -30,11 +28,13 @@ def design_data() -> dict:
     base_thickness = 1.0
     magnet_wall = 2.04
     steel_thickness = INCH / 8.0
-    steel_wall = INCH / 8.0
+    steel_wall = INCH / 4.0 - 0.1
     steel_wall_extra = 1.0
     snap_overhang = 0.2
     outer_tab_width = 2.0
     outer_tab_overhang = 1.0
+    cover_inner_radius = steel_inner_radius - steel_wall
+    cover_outer_radius = steel_outer_radius + steel_wall
     steel_margin = (steel_outer_radius - steel_inner_radius - magnet_length) / 2.0
     magnet_inner_radius = steel_inner_radius + steel_margin
     magnet_outer_radius = magnet_inner_radius + magnet_length
@@ -273,7 +273,7 @@ def generate_cross_section_svg(data: dict) -> str:
         f'  <line x1="{x(steel_start):.3f}" y1="{y(10.3):.3f}" x2="{x(steel_start + data["steel_wall"]):.3f}" y2="{y(10.3):.3f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="{x(steel_start + data["steel_wall"] / 2):.3f}" y="{y(10.65):.3f}" text-anchor="middle" class="text" font-size="3.0">3.175 wall</text>'
+        f'  <text x="{x(steel_start + data["steel_wall"] / 2):.3f}" y="{y(10.65):.3f}" text-anchor="middle" class="text" font-size="3.0">{data["steel_wall"]:.2f} wall</text>'
     )
     lines.append(
         f'  <line x1="{left_lip_x:.3f}" y1="{y(wall_top + 1.3):.3f}" x2="{left_lip_x + lip_w:.3f}" y2="{y(wall_top + 1.3):.3f}" class="dim"/>'
