@@ -182,15 +182,16 @@ def make_inner_wall(data: dict) -> Shape:
         cir,z1 ──── sir,z1        (bottom — cavity floor level)
                       |
                     sir,z3        (straight up to steel seat)
-                       ╲
-               sir+taper-snap,z4  (chamfer flares cavity outward)
+                     ╱
+               sir-taper,z4       (chamfer flares cavity INWARD → wider opening)
                        ╲
                sir-snap,z5        (snap tooth grips inside steel ID)
         cir,z5 ──────────
 
     snap  = 0.2 mm (snap_overhang)
     taper = 1.2 mm (chamfer_taper)
-    At z5: cavity face is 0.2 mm inward of steel inner edge → grips ring.
+    At z4: cavity face is 1.2 mm inward of steel ID → wider opening guides ring in.
+    At z5: snap is 0.2 mm inward of steel ID → grips ring after it passes z4 peak.
     """
     cir   = data["cover_inner_radius"]
     sir   = data["steel_inner_radius"]
@@ -199,12 +200,12 @@ def make_inner_wall(data: dict) -> Shape:
     taper = data["chamfer_taper"]
 
     xz = [
-        (cir,              z1),
-        (sir,              z1),
-        (sir,              z3),
-        (sir + taper - snap, z4),
-        (sir - snap,       z5),
-        (cir,              z5),
+        (cir,          z1),
+        (sir,          z1),
+        (sir,          z3),
+        (sir - taper,  z4),
+        (sir - snap,   z5),
+        (cir,          z5),
     ]
     return _revolve_xz_profile(xz)
 
@@ -219,10 +220,10 @@ def make_outer_wall(data: dict) -> Shape:
         sor,z1 ──── cor,z1
           |
         sor,z3              (straight up to steel seat)
+             ╲
+        sor+taper,z4        (chamfer flares cavity OUTWARD → wider opening)
          ╱
-    sor-taper+snap,z4       (chamfer flares cavity inward)
-         ╱
-    sor+snap,z5             (snap grips outside steel OD)
+    sor-snap,z5             (snap grips outside steel OD)
         cor,z5 ──────────
     """
     cor   = data["cover_outer_radius"]
@@ -232,12 +233,12 @@ def make_outer_wall(data: dict) -> Shape:
     taper = data["chamfer_taper"]
 
     xz = [
-        (sor,              z1),
-        (cor,              z1),
-        (cor,              z5),
-        (sor + snap,       z5),
-        (sor - taper + snap, z4),
-        (sor,              z3),
+        (sor,          z1),
+        (cor,          z1),
+        (cor,          z5),
+        (sor - snap,   z5),
+        (sor + taper,  z4),
+        (sor,          z3),
     ]
     return _revolve_xz_profile(xz)
 

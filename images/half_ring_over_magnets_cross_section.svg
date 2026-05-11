@@ -1,63 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="74.2mm" height="34.9mm" viewBox="38.825 -12.200 74.150 34.875">
+<svg xmlns="http://www.w3.org/2000/svg" width="65.9mm" height="41.6mm" viewBox="46.965 -11.060 65.870 41.595">
 <defs>
-  <marker id="a1" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
-    <path d="M0,0 L5,2.5 L0,5 Z" fill="#555"/></marker>
-  <marker id="a2" markerWidth="5" markerHeight="5" refX="1" refY="2.5" orient="auto">
-    <path d="M5,0 L0,2.5 L5,5 Z" fill="#555"/></marker>
+  <marker id="a1" markerWidth="4" markerHeight="4" refX="3.5" refY="2" orient="auto">
+    <path d="M0,0 L4,2 L0,4 Z" fill="#444"/></marker>
+  <marker id="a2" markerWidth="4" markerHeight="4" refX="0.5" refY="2" orient="auto">
+    <path d="M4,0 L0,2 L4,4 Z" fill="#444"/></marker>
 </defs>
-<text x="88.900" y="-8.200" text-anchor="middle" font-family="sans-serif" font-size="3.2" font-weight="bold" fill="#222">10 in half-ring cover — radial cross-section (1:1 scale)</text>
-<text x="88.900" y="-4.200" text-anchor="middle" font-family="sans-serif" font-size="2.2" font-weight="normal" fill="#666">ID 5.750 in / OD 8.250 in  •  all dimensions in mm unless noted</text>
-<rect x="76.200" y="1.000" width="25.400" height="2.100" fill="#4a90e2" fill-opacity="0.25" stroke="none"/>
-<rect x="78.900" y="1.000" width="20.000" height="2.000" fill="#2e6bb0" fill-opacity="0.55" stroke="none"/>
-<rect x="76.200" y="3.100" width="25.400" height="3.175" fill="#666" fill-opacity="0.55" stroke="none"/>
-<text x="88.900" y="5.388" text-anchor="middle" font-family="sans-serif" font-size="1.8" font-weight="normal" fill="white">steel ring (ref)</text>
-<text x="88.900" y="2.600" text-anchor="middle" font-family="sans-serif" font-size="1.8" font-weight="normal" fill="white">magnet (ref)</text>
+<text x="88.900" y="-8.560" text-anchor="middle" font-family="sans-serif" font-size="1.8" font-weight="bold" fill="#222">10 in half-ring cover — radial cross-section  ID 5.750 in / OD 8.250 in</text>
+<text x="88.900" y="-6.060" text-anchor="middle" font-family="sans-serif" font-size="1.2" font-weight="normal" fill="#666">1:1 scale • ring enters from top (z5) • seats at z3 • gray = printed cover, blue = magnet, dk-gray = steel ring</text>
+<rect x="76.200" y="1.000" width="25.400" height="2.100" fill="#4a90e2" fill-opacity="0.2" stroke="none"/>
+<rect x="78.900" y="1.000" width="20.000" height="2.000" fill="#2e6bb0" fill-opacity="0.5" stroke="none"/>
+<rect x="76.200" y="3.100" width="25.400" height="3.175" fill="#777" fill-opacity="0.5" stroke="none"/>
+<text x="88.900" y="5.188" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="white">steel (ref)</text>
+<text x="88.900" y="2.500" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="white">magnet (ref)</text>
 <g xmlns="http://www.w3.org/2000/svg" transform="scale(1,-1)" stroke-linecap="round">
-    <g fill="rgb(214,214,214)" stroke="rgb(89,89,89)" stroke-width="0.4" id="cover">
-      <path d="M 104.775,0.0 L 73.025,0.0 L 73.025,-8.475 L 76.0,-8.475 Q 76.5953,-8.375783 77.2,-8.275 Q 76.69674,-7.268481 76.2,-6.275 L 76.2,-1.0 L 101.6,-1.0 L 101.6,-6.275 Q 101.097527,-7.279946 100.6,-8.275 Q 101.196443,-8.374407 101.8,-8.475 L 104.775,-8.475 L 104.775,0.0" />
+    <g fill="rgb(214,214,214)" stroke="rgb(89,89,89)" stroke-width="0.12" id="cover">
+      <path d="M 104.775,0.0 L 73.025,0.0 L 73.025,-8.475 L 76.0,-8.475 Q 75.496689,-8.374338 75.0,-8.275 Q 75.595238,-7.282937 76.2,-6.275 L 76.2,-1.0 L 101.6,-1.0 L 101.6,-6.275 Q 102.196477,-7.269129 102.8,-8.275 Q 102.095201,-8.375686 101.4,-8.475 L 104.775,-8.475 L 104.775,0.0" />
     </g>
   </g>
 
-<line x1="72.025" y1="1.000" x2="105.775" y2="1.000" stroke="#aaa" stroke-width="0.25" stroke-dasharray="1,1.5"/>
-<line x1="72.025" y1="3.100" x2="105.775" y2="3.100" stroke="#aaa" stroke-width="0.25" stroke-dasharray="1,1.5"/>
-<line x1="72.025" y1="6.275" x2="105.775" y2="6.275" stroke="#aaa" stroke-width="0.25" stroke-dasharray="1,1.5"/>
-<line x1="72.025" y1="8.275" x2="105.775" y2="8.275" stroke="#aaa" stroke-width="0.25" stroke-dasharray="0.5,1"/>
-<line x1="72.025" y1="8.475" x2="105.775" y2="8.475" stroke="#aaa" stroke-width="0.25" stroke-dasharray="0.5,1"/>
-<line x1="69.225" y1="0.000" x2="70.025" y2="0.000" stroke="#555" stroke-width="0.35"/>
-<line x1="69.225" y1="1.000" x2="70.025" y2="1.000" stroke="#555" stroke-width="0.35"/>
-<line x1="70.025" y1="0.000" x2="70.025" y2="1.000" stroke="#555" stroke-width="0.35"/>
-<text x="69.025" y="1.200" text-anchor="end" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">base  1.0</text>
-<line x1="69.225" y1="1.000" x2="70.025" y2="1.000" stroke="#555" stroke-width="0.35"/>
-<line x1="69.225" y1="3.100" x2="70.025" y2="3.100" stroke="#555" stroke-width="0.35"/>
-<line x1="70.025" y1="1.000" x2="70.025" y2="3.100" stroke="#555" stroke-width="0.35"/>
-<text x="69.025" y="2.750" text-anchor="end" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">magnet  2.1</text>
-<line x1="69.225" y1="3.100" x2="70.025" y2="3.100" stroke="#555" stroke-width="0.35"/>
-<line x1="69.225" y1="6.275" x2="70.025" y2="6.275" stroke="#555" stroke-width="0.35"/>
-<line x1="70.025" y1="3.100" x2="70.025" y2="6.275" stroke="#555" stroke-width="0.35"/>
-<text x="69.025" y="5.388" text-anchor="end" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">steel  3.175</text>
-<line x1="69.225" y1="6.275" x2="70.025" y2="6.275" stroke="#555" stroke-width="0.35"/>
-<line x1="69.225" y1="8.275" x2="70.025" y2="8.275" stroke="#555" stroke-width="0.35"/>
-<line x1="70.025" y1="6.275" x2="70.025" y2="8.275" stroke="#555" stroke-width="0.35"/>
-<text x="69.025" y="7.975" text-anchor="end" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">chamfer  2.0</text>
-<line x1="69.225" y1="8.275" x2="70.025" y2="8.275" stroke="#555" stroke-width="0.35"/>
-<line x1="69.225" y1="8.475" x2="70.025" y2="8.475" stroke="#555" stroke-width="0.35"/>
-<line x1="70.025" y1="8.275" x2="70.025" y2="8.475" stroke="#555" stroke-width="0.35"/>
-<text x="69.025" y="9.075" text-anchor="end" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">snap  0.2</text>
-<line x1="73.025" y1="0.000" x2="73.025" y2="-2.700" stroke="#555" stroke-width="0.3" stroke-dasharray="0.5,0.8"/>
-<text x="73.025" y="-7.000" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">cover ID</text>
-<text x="73.025" y="-4.200" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">5.750 in</text>
-<line x1="76.200" y1="0.000" x2="76.200" y2="-2.700" stroke="#555" stroke-width="0.3" stroke-dasharray="0.5,0.8"/>
-<text x="76.200" y="-7.000" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">steel ID</text>
-<text x="76.200" y="-4.200" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">6.000 in</text>
-<line x1="101.600" y1="0.000" x2="101.600" y2="-2.700" stroke="#555" stroke-width="0.3" stroke-dasharray="0.5,0.8"/>
-<text x="101.600" y="-7.000" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">steel OD</text>
-<text x="101.600" y="-4.200" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">8.000 in</text>
-<line x1="104.775" y1="0.000" x2="104.775" y2="-2.700" stroke="#555" stroke-width="0.3" stroke-dasharray="0.5,0.8"/>
-<text x="104.775" y="-7.000" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">cover OD</text>
-<text x="104.775" y="-4.200" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">8.250 in</text>
-<line x1="73.025" y1="14.675" x2="76.200" y2="14.675" stroke="#555" stroke-width="0.4" marker-start="url(#a2)" marker-end="url(#a1)"/>
-<text x="74.612" y="18.175" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">3.175 mm (⅛ in)</text>
-<line x1="101.600" y1="14.675" x2="104.775" y2="14.675" stroke="#555" stroke-width="0.4" marker-start="url(#a2)" marker-end="url(#a1)"/>
-<text x="103.188" y="18.175" text-anchor="middle" font-family="sans-serif" font-size="2.0" font-weight="normal" fill="#333">3.175 mm (⅛ in)</text>
+<line x1="72.525" y1="1.000" x2="105.275" y2="1.000" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.8,0.8"/>
+<line x1="72.525" y1="3.100" x2="105.275" y2="3.100" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.8,0.8"/>
+<line x1="72.525" y1="6.275" x2="105.275" y2="6.275" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.8,0.8"/>
+<line x1="72.525" y1="8.275" x2="105.275" y2="8.275" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.8,0.8"/>
+<line x1="72.525" y1="8.475" x2="105.275" y2="8.475" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.8,0.8"/>
+<line x1="70.425" y1="0.000" x2="71.025" y2="0.000" stroke="#444" stroke-width="0.15"/>
+<line x1="70.425" y1="1.000" x2="71.025" y2="1.000" stroke="#444" stroke-width="0.15"/>
+<line x1="71.025" y1="0.000" x2="71.025" y2="1.000" stroke="#444" stroke-width="0.15"/>
+<text x="70.425" y="1.000" text-anchor="end" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444">base 1.0</text>
+<line x1="70.425" y1="1.000" x2="71.025" y2="1.000" stroke="#444" stroke-width="0.15"/>
+<line x1="70.425" y1="3.100" x2="71.025" y2="3.100" stroke="#444" stroke-width="0.15"/>
+<line x1="71.025" y1="1.000" x2="71.025" y2="3.100" stroke="#444" stroke-width="0.15"/>
+<text x="70.425" y="2.550" text-anchor="end" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444">magnet clr 2.1</text>
+<line x1="70.425" y1="3.100" x2="71.025" y2="3.100" stroke="#444" stroke-width="0.15"/>
+<line x1="70.425" y1="6.275" x2="71.025" y2="6.275" stroke="#444" stroke-width="0.15"/>
+<line x1="71.025" y1="3.100" x2="71.025" y2="6.275" stroke="#444" stroke-width="0.15"/>
+<text x="70.425" y="5.188" text-anchor="end" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444">steel 3.175</text>
+<line x1="70.425" y1="6.275" x2="71.025" y2="6.275" stroke="#444" stroke-width="0.15"/>
+<line x1="70.425" y1="8.275" x2="71.025" y2="8.275" stroke="#444" stroke-width="0.15"/>
+<line x1="71.025" y1="6.275" x2="71.025" y2="8.275" stroke="#444" stroke-width="0.15"/>
+<text x="70.425" y="7.775" text-anchor="end" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444">chamfer 2.0</text>
+<line x1="73.025" y1="8.375" x2="68.725" y2="8.375" stroke="#444" stroke-width="0.12"/>
+<text x="68.525" y="8.875" text-anchor="end" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444">snap 0.2</text>
+<line x1="73.025" y1="10.535" x2="73.025" y2="12.035" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.6,0.6"/>
+<line x1="73.025" y1="12.035" x2="73.025" y2="19.235" stroke="#444" stroke-width="0.12"/>
+<text x="73.025" y="21.035" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444" transform="rotate(-50,73.025,21.035)">cover ID 5.750 in</text>
+<line x1="76.200" y1="10.535" x2="76.200" y2="12.035" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.6,0.6"/>
+<line x1="76.200" y1="12.035" x2="76.200" y2="19.235" stroke="#444" stroke-width="0.12"/>
+<text x="76.200" y="21.035" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444" transform="rotate(-50,76.200,21.035)">steel ID 6.000 in</text>
+<line x1="101.600" y1="10.535" x2="101.600" y2="12.035" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.6,0.6"/>
+<line x1="101.600" y1="12.035" x2="101.600" y2="19.235" stroke="#444" stroke-width="0.12"/>
+<text x="101.600" y="21.035" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444" transform="rotate(-50,101.600,21.035)">steel OD 8.000 in</text>
+<line x1="104.775" y1="10.535" x2="104.775" y2="12.035" stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.6,0.6"/>
+<line x1="104.775" y1="12.035" x2="104.775" y2="19.235" stroke="#444" stroke-width="0.12"/>
+<text x="104.775" y="21.035" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444" transform="rotate(-50,104.775,21.035)">cover OD 8.250 in</text>
+<line x1="73.025" y1="26.035" x2="76.200" y2="26.035" stroke="#444" stroke-width="0.15" marker-start="url(#a2)" marker-end="url(#a1)"/>
+<text x="74.612" y="25.235" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444">wall 3.175 mm</text>
+<line x1="101.600" y1="26.035" x2="104.775" y2="26.035" stroke="#444" stroke-width="0.15" marker-start="url(#a2)" marker-end="url(#a1)"/>
+<text x="103.188" y="25.235" text-anchor="middle" font-family="sans-serif" font-size="1.3" font-weight="normal" fill="#444">wall 3.175 mm</text>
 </svg>

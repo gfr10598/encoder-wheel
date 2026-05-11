@@ -243,7 +243,7 @@ def generate_cross_section_svg(data: dict) -> str:
         "cover",
         fill_color=Color(0.84, 0.84, 0.84),
         line_color=Color(0.35, 0.35, 0.35),
-        line_weight=0.4,
+        line_weight=0.12,
     )
     exporter.add_shape(rotated, layer="cover")
     exporter.write(tmppath)
@@ -274,9 +274,9 @@ def generate_cross_section_svg(data: dict) -> str:
     cod  = 2 * cor / INCH
 
     # ── 6. Expand viewBox for annotation margins ──────────────────────
-    left_margin  = 32   # space for Z bracket labels
-    top_margin   = 10   # space for title + radial tick labels
-    bot_margin   = 12   # space for bottom dimension arrows
+    left_margin  = 24   # space for Z bracket labels
+    top_margin   = 9    # space for title
+    bot_margin   = 20   # space for radial labels + wall-width arrows
     right_margin = 6
 
     nx  = vb_x - left_margin
@@ -288,18 +288,28 @@ def generate_cross_section_svg(data: dict) -> str:
     def fx(v: float) -> str: return f"{v:.3f}"
     def fy(v: float) -> str: return f"{v:.3f}"
 
+    sw = "0.15"   # standard annotation stroke-width
+    fs = 1.5      # standard annotation font-size (mm)
+    fc = "#444"   # standard annotation fill color
+
     def line(x1, y1, x2, y2, **attrs) -> str:
-        a = " ".join(f'{k}="{v}"' for k, v in attrs.items())
+        base = {"stroke": fc, "stroke-width": sw}
+        base.update(attrs)
+        a = " ".join(f'{k}="{v}"' for k, v in base.items())
         return (f'<line x1="{fx(x1)}" y1="{fy(y1)}" '
                 f'x2="{fx(x2)}" y2="{fy(y2)}" {a}/>')
 
-    def text(x, y, msg, anchor="middle", size=2.2, bold=False, color="#333") -> str:
+    def text(x, y, msg, anchor="middle", size=None, bold=False,
+             color=None, rotate=None) -> str:
+        sz  = size  if size  is not None else fs
+        col = color if color is not None else fc
         fw = "bold" if bold else "normal"
+        rot = f' transform="rotate({rotate},{fx(x)},{fy(y)})"' if rotate else ""
         return (f'<text x="{fx(x)}" y="{fy(y)}" text-anchor="{anchor}" '
-                f'font-family="sans-serif" font-size="{size}" '
-                f'font-weight="{fw}" fill="{color}">{msg}</text>')
+                f'font-family="sans-serif" font-size="{sz}" '
+                f'font-weight="{fw}" fill="{col}"{rot}>{msg}</text>')
 
-    def rect(x, y, w, h, fill, opacity=0.65, stroke="none") -> str:
+    def rect(x, y, w, h, fill, opacity=0.55, stroke="none") -> str:
         return (f'<rect x="{fx(x)}" y="{fy(y)}" width="{w:.3f}" height="{h:.3f}" '
                 f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}"/>')
 
@@ -308,106 +318,120 @@ def generate_cross_section_svg(data: dict) -> str:
         (f'<svg xmlns="http://www.w3.org/2000/svg" '
          f'width="{nw:.1f}mm" height="{nh:.1f}mm" '
          f'viewBox="{nx:.3f} {ny:.3f} {nw:.3f} {nh:.3f}">'),
-        # Arrow marker defs
         '<defs>',
-        '  <marker id="a1" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">',
-        '    <path d="M0,0 L5,2.5 L0,5 Z" fill="#555"/></marker>',
-        '  <marker id="a2" markerWidth="5" markerHeight="5" refX="1" refY="2.5" orient="auto">',
-        '    <path d="M5,0 L0,2.5 L5,5 Z" fill="#555"/></marker>',
+        '  <marker id="a1" markerWidth="4" markerHeight="4" refX="3.5" refY="2" orient="auto">',
+        '    <path d="M0,0 L4,2 L0,4 Z" fill="#444"/></marker>',
+        '  <marker id="a2" markerWidth="4" markerHeight="4" refX="0.5" refY="2" orient="auto">',
+        '    <path d="M4,0 L0,2 L4,4 Z" fill="#444"/></marker>',
         '</defs>',
     ]
 
     # ── Title ─────────────────────────────────────────────────────────
-    parts.append(text((cir + cor) / 2, ny + 4,
-                      "10 in half-ring cover \u2014 radial cross-section (1:1 scale)",
-                      size=3.2, bold=True, color="#222"))
-    parts.append(text((cir + cor) / 2, ny + 8,
-                      f"ID {cid:.3f} in / OD {cod:.3f} in  \u2022  "
-                      f"all dimensions in mm unless noted",
-                      size=2.2, color="#666"))
+    parts.append(text((cir + cor) / 2, ny + 2.5,
+                      f"10 in half-ring cover \u2014 radial cross-section  "
+                      f"ID {cid:.3f} in / OD {cod:.3f} in",
+                      size=1.8, bold=True, color="#222"))
+    parts.append(text((cir + cor) / 2, ny + 5,
+                      "1:1 scale \u2022 ring enters from top (z5) \u2022 seats at z3 \u2022 "
+                      "gray = printed cover, blue = magnet, dk-gray = steel ring",
+                      size=1.2, color="#666"))
 
-    # ── Zone fill bands (inside the cavity) ───────────────────────────
-    # Magnet clearance zone (z1→z2, full cavity width)
-    parts.append(rect(sir, z1, sor - sir, z2 - z1, "#4a90e2", opacity=0.25))
-    # Magnet reference body (z1→z1+mt, mir→mor)
-    parts.append(rect(mir, z1, mor - mir, mt, "#2e6bb0", opacity=0.55))
-    # Steel ring reference (z2→z3, sir→sor)
-    parts.append(rect(sir, z2, sor - sir, z3 - z2, "#666", opacity=0.55))
-    # Steel zone label
-    parts.append(text((sir + sor) / 2, z2 + (z3 - z2) / 2 + 0.7,
-                      "steel ring (ref)", size=1.8, color="white"))
-    # Magnet label
-    parts.append(text((mir + mor) / 2, z1 + mt / 2 + 0.6,
-                      "magnet (ref)", size=1.8, color="white"))
+    # ── Zone fill bands ────────────────────────────────────────────────
+    parts.append(rect(sir, z1, sor - sir, z2 - z1, "#4a90e2", opacity=0.20))
+    parts.append(rect(mir, z1, mor - mir, mt,        "#2e6bb0", opacity=0.50))
+    parts.append(rect(sir, z2, sor - sir, z3 - z2,  "#777",    opacity=0.50))
+
+    # Small zone labels — only where there is enough room
+    cx_cav = (sir + sor) / 2
+    parts.append(text(cx_cav, z2 + (z3 - z2) / 2 + 0.5,
+                      "steel (ref)", size=1.3, color="white"))
+    parts.append(text((mir + mor) / 2, z1 + mt / 2 + 0.5,
+                      "magnet (ref)", size=1.3, color="white"))
 
     # ── Geometry (ExportSVG output) ────────────────────────────────────
     parts.append(geom_xml)
 
-    # ── Horizontal zone boundary lines ────────────────────────────────
-    for z_val, dash in [(z1, "1,1.5"), (z2, "1,1.5"), (z3, "1,1.5"),
-                        (z4, "0.5,1"), (z5, "0.5,1")]:
+    # ── Thin dashed zone boundaries ───────────────────────────────────
+    for z_val in (z1, z2, z3, z4, z5):
         parts.append(
-            f'<line x1="{fx(cir - 1)}" y1="{fy(z_val)}" '
-            f'x2="{fx(cor + 1)}" y2="{fy(z_val)}" '
-            f'stroke="#aaa" stroke-width="0.25" stroke-dasharray="{dash}"/>'
+            f'<line x1="{fx(cir - 0.5)}" y1="{fy(z_val)}" '
+            f'x2="{fx(cor + 0.5)}" y2="{fy(z_val)}" '
+            f'stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.8,0.8"/>'
         )
 
     # ── Left-side Z zone brackets ──────────────────────────────────────
-    bx  = cir - 3     # bracket x
-    lx  = cir - 4     # label x
-    zones = [
-        (0,  z1, f"base  {z1:.1f}"),
-        (z1, z2, f"magnet  {z2 - z1:.1f}"),
-        (z2, z3, f"steel  {z3 - z2:.3f}"),
-        (z3, z4, f"chamfer  {z4 - z3:.1f}"),
-        (z4, z5, f"snap  {z5 - z4:.1f}"),
-    ]
-    for z_bot, z_top, label in zones:
-        mid = (z_bot + z_top) / 2
-        tick = 0.8
-        parts.append(line(bx - tick, z_bot, bx, z_bot,
-                          stroke="#555", **{"stroke-width": "0.35"}))
-        parts.append(line(bx - tick, z_top, bx, z_top,
-                          stroke="#555", **{"stroke-width": "0.35"}))
-        parts.append(line(bx, z_bot, bx, z_top,
-                          stroke="#555", **{"stroke-width": "0.35"}))
-        parts.append(text(lx, mid + 0.7, label, anchor="end", size=2.0))
+    bx  = cir - 2.0    # bracket line x
+    lx  = cir - 2.6    # label x (right-aligned)
+    tk  = 0.6          # tick half-width
 
-    # ── Top radial tick marks and labels ──────────────────────────────
-    tick_top = vb_y - 0.5
+    zones_full = [
+        (0,  z1, f"base {z1:.1f}"),
+        (z1, z2, f"magnet clr {z2-z1:.1f}"),
+        (z2, z3, f"steel {z3-z2:.3f}"),
+        (z3, z4, f"chamfer {z4-z3:.1f}"),
+    ]
+    for z_bot, z_top, label in zones_full:
+        mid = (z_bot + z_top) / 2
+        parts.append(line(bx - tk, z_bot, bx, z_bot))
+        parts.append(line(bx - tk, z_top, bx, z_top))
+        parts.append(line(bx, z_bot, bx, z_top))
+        parts.append(text(lx, mid + 0.5, label, anchor="end", size=1.3))
+
+    # Snap zone (0.2mm) — leader callout instead of bracket
+    snap_cx = cir - 4.0
+    snap_cy = (z4 + z5) / 2
+    parts.append(
+        f'<line x1="{fx(cir)}" y1="{fy(snap_cy)}" '
+        f'x2="{fx(snap_cx - 0.3)}" y2="{fy(snap_cy)}" '
+        f'stroke="{fc}" stroke-width="0.12"/>'
+    )
+    parts.append(text(snap_cx - 0.5, snap_cy + 0.5,
+                      f"snap {z5-z4:.1f}", anchor="end", size=1.3))
+
+    # ── Radial tick marks + angled labels (below geometry) ────────────
+    ry_base = vb_y + vb_h + 1.5   # just below geometry
+    label_drop = 9.0               # how far below the base tick labels sit
     radials = [
-        (cir, f"cover ID\n{cid:.3f} in"),
-        (sir, f"steel ID\n6.000 in"),
-        (sor, f"steel OD\n8.000 in"),
-        (cor, f"cover OD\n{cod:.3f} in"),
+        (cir, f"cover ID {cid:.3f} in"),
+        (sir, f"steel ID 6.000 in"),
+        (sor, f"steel OD 8.000 in"),
+        (cor, f"cover OD {cod:.3f} in"),
     ]
     for rx, rlabel in radials:
-        parts.append(line(rx, 0.0, rx, tick_top,
-                          stroke="#555", **{"stroke-width": "0.3",
-                                           "stroke-dasharray": "0.5,0.8"}))
-        lines_list = rlabel.split("\n")
-        for i, ln in enumerate(lines_list):
-            ty = tick_top - 1.5 - (len(lines_list) - 1 - i) * 2.8
-            parts.append(text(rx, ty, ln, size=2.0))
+        # Thin vertical leader from geometry bottom to tick
+        parts.append(
+            f'<line x1="{fx(rx)}" y1="{fy(vb_y + vb_h)}" '
+            f'x2="{fx(rx)}" y2="{fy(ry_base)}" '
+            f'stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.6,0.6"/>'
+        )
+        # Angled leader to stagger labels
+        lx2 = rx
+        ly2 = ry_base + label_drop
+        parts.append(
+            f'<line x1="{fx(rx)}" y1="{fy(ry_base)}" '
+            f'x2="{fx(lx2)}" y2="{fy(ly2 - 1.8)}" '
+            f'stroke="{fc}" stroke-width="0.12"/>'
+        )
+        parts.append(text(lx2, ly2, rlabel, anchor="middle",
+                          size=1.3, rotate=-50))
 
-    # ── Bottom wall-width dimension arrows ─────────────────────────────
-    arrow_y = vb_y + vb_h + 4
+    # ── Wall-width arrows (below radial labels) ─────────────────────────
+    arrow_y = ry_base + label_drop + 5
     for x1v, x2v, lbl in [
-        (cir, sir, f"{cw:.3f} mm (⅛ in)"),
-        (sor, cor, f"{cw:.3f} mm (⅛ in)"),
+        (cir, sir, f"wall {cw:.3f} mm"),
+        (sor, cor, f"wall {cw:.3f} mm"),
     ]:
         mx = (x1v + x2v) / 2
         parts.append(
             f'<line x1="{fx(x1v)}" y1="{fy(arrow_y)}" '
             f'x2="{fx(x2v)}" y2="{fy(arrow_y)}" '
-            f'stroke="#555" stroke-width="0.4" '
+            f'stroke="{fc}" stroke-width="0.15" '
             f'marker-start="url(#a2)" marker-end="url(#a1)"/>'
         )
-        parts.append(text(mx, arrow_y + 3.5, lbl, size=2.0))
+        parts.append(text(mx, arrow_y - 0.8, lbl, size=1.3))
 
     parts.append("</svg>")
     return "\n".join(parts)
-
 
 
 
