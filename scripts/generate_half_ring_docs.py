@@ -16,63 +16,115 @@ INCH = 25.4
 
 
 def design_data() -> dict:
-    """Return the fixed design inputs and derived dimensions."""
-    steel_inner_radius = 6.0 * INCH / 2.0
-    steel_outer_radius = 8.0 * INCH / 2.0
+    """Return the fixed design inputs and all derived dimensions.
+
+    Axial stack (Z=0 = print-bed / bottom face, Z increases upward):
+      z0 = 0              bottom of base (print-bed face)
+      z1 = base           top of base / start of capture cavity
+      z2 = z1 + magnet_clearance   top of magnet zone
+      z3 = z2 + steel_t   top of steel zone (steel ring sits here)
+      z4 = z3 + chamfer   top of chamfer lead-in  (open entry of cavity)
+      z5 = z4 + snap      snap tooth tip (outermost wall height)
+
+    The chamfer makes assembly easy: walls taper over z3→z4 then the 0.2 mm
+    snap tooth protrudes inward at z4→z5 to retain the steel ring.
+    """
+    steel_inner_radius = 6.0 * INCH / 2.0   # 76.20 mm
+    steel_outer_radius = 8.0 * INCH / 2.0   # 101.60 mm
 
     magnet_length = 20.0
     magnet_width = 5.0
     magnet_thickness = 2.0
     magnets_per_half = 45
 
-    base_thickness = 1.0
-    magnet_wall = 2.04
-    steel_thickness = INCH / 8.0
-    # Cover walls are 1/8 in thick on each side of the steel ring, giving
-    # 5.75 in ID and 8.25 in OD for the printed cover.
-    cover_wall = INCH / 8.0
-    steel_wall_extra = 1.0
-    snap_overhang = 0.2
-    outer_tab_width = 2.0
-    outer_tab_overhang = 1.0
-    cover_inner_radius = steel_inner_radius - cover_wall
-    cover_outer_radius = steel_outer_radius + cover_wall
-    steel_margin = (steel_outer_radius - steel_inner_radius - magnet_length) / 2.0
+    # ── Axial (Z) layer thicknesses ──────────────────────────────────
+    base_thickness    = 1.0          # flat skin, print-bed face
+    magnet_clearance  = 2.1          # magnet 2 mm + 0.1 mm clearance
+    steel_thickness   = INCH / 8.0   # 3.175 mm  (1/8 in steel ring)
+    chamfer_height    = 2.0          # lead-in taper above steel seat
+    snap_overhang     = 0.2          # inward tooth at the open end
+
+    # ── Derived Z positions ──────────────────────────────────────────
+    z1 = base_thickness
+    z2 = z1 + magnet_clearance
+    z3 = z2 + steel_thickness
+    z4 = z3 + chamfer_height
+    z5 = z4 + snap_overhang
+
+    # ── Radial layout ────────────────────────────────────────────────
+    # Cover walls are 1/8 in on each side → 5.75 in ID / 8.25 in OD
+    # Total radial span = 1.5 in = 38.1 mm
+    cover_wall          = INCH / 8.0   # 3.175 mm
+    cover_inner_radius  = steel_inner_radius - cover_wall   # 73.025 mm
+    cover_outer_radius  = steel_outer_radius + cover_wall   # 104.775 mm
+
+    # Magnet band is centred on the steel ring
+    steel_margin        = (steel_outer_radius - steel_inner_radius - magnet_length) / 2.0
     magnet_inner_radius = steel_inner_radius + steel_margin
     magnet_outer_radius = magnet_inner_radius + magnet_length
 
-    pitch_angle = math.tau / 90.0
-    wedge_outer = steel_outer_radius * pitch_angle - magnet_width
-    wedge_inner = steel_inner_radius * pitch_angle - magnet_width
+    # Magnet-end walls (radial stops at each end of the 20 mm magnet)
+    magnet_wall         = 2.04
+
+    # Chamfer taper: how far the cavity flares outward at z4 relative to z3.
+    # At z5 the snap tooth is snap_overhang inside the steel ring face,
+    # so chamfer_taper must be > snap_overhang for the ring to enter freely.
+    # 1.2 mm gives a comfortable 31° entry angle (2 mm axial, 1.2 mm radial).
+    chamfer_taper       = 1.2
+
+    # Magnet pocket corner fillet in the cavity: must be larger than the magnet's
+    # own corner radius so the magnet seats fully.  Conservative = 0.5 mm.
+    magnet_pocket_fillet = 0.5
+
+    # Outer retention tabs (per-magnet, spring out 1 mm to grip steel OD)
+    outer_tab_width     = 2.0
+    outer_tab_overhang  = 1.0
+    # Tab flex pocket: slot cut in outer wall to let tab spring outward
+    tab_pocket_depth    = chamfer_height + snap_overhang   # full extra-wall zone
+
+    pitch_angle    = math.tau / 90.0
+    wedge_outer    = steel_outer_radius * pitch_angle - magnet_width
+    wedge_inner    = steel_inner_radius * pitch_angle - magnet_width
     half_arc_outer = math.pi * steel_outer_radius
     used_arc_outer = magnets_per_half * (magnet_width + wedge_outer)
 
     return {
-        "cover_inner_radius": cover_inner_radius,
-        "cover_outer_radius": cover_outer_radius,
-        "cover_radial_span": cover_outer_radius - cover_inner_radius,
-        "steel_inner_radius": steel_inner_radius,
-        "steel_outer_radius": steel_outer_radius,
-        "steel_thickness": steel_thickness,
+        # Radii
+        "cover_inner_radius":  cover_inner_radius,
+        "cover_outer_radius":  cover_outer_radius,
+        "cover_radial_span":   cover_outer_radius - cover_inner_radius,
+        "steel_inner_radius":  steel_inner_radius,
+        "steel_outer_radius":  steel_outer_radius,
         "magnet_inner_radius": magnet_inner_radius,
         "magnet_outer_radius": magnet_outer_radius,
-        "magnet_length": magnet_length,
-        "magnet_width": magnet_width,
+        # Magnet
+        "magnet_length":    magnet_length,
+        "magnet_width":     magnet_width,
         "magnet_thickness": magnet_thickness,
         "magnets_per_half": magnets_per_half,
-        "base_thickness": base_thickness,
-        "magnet_wall": magnet_wall,
-        "cover_wall": cover_wall,
-        "steel_wall_extra": steel_wall_extra,
-        "snap_overhang": snap_overhang,
-        "outer_tab_width": outer_tab_width,
+        # Axial thicknesses
+        "base_thickness":   base_thickness,
+        "magnet_clearance": magnet_clearance,
+        "steel_thickness":  steel_thickness,
+        "chamfer_height":   chamfer_height,
+        "snap_overhang":    snap_overhang,
+        # Derived Z positions
+        "z1": z1,  "z2": z2,  "z3": z3,  "z4": z4,  "z5": z5,
+        # Wall geometry
+        "cover_wall":        cover_wall,
+        "magnet_wall":       magnet_wall,
+        "chamfer_taper":     chamfer_taper,
+        "magnet_pocket_fillet": magnet_pocket_fillet,
+        "outer_tab_width":   outer_tab_width,
         "outer_tab_overhang": outer_tab_overhang,
-        "wedge_outer": wedge_outer,
-        "wedge_inner": wedge_inner,
-        "pitch_angle": pitch_angle,
+        "tab_pocket_depth":  tab_pocket_depth,
+        # Angular / arc maths
+        "pitch_angle":     pitch_angle,
         "pitch_angle_deg": math.degrees(pitch_angle),
-        "half_arc_outer": half_arc_outer,
-        "used_arc_outer": used_arc_outer,
+        "wedge_outer":     wedge_outer,
+        "wedge_inner":     wedge_inner,
+        "half_arc_outer":  half_arc_outer,
+        "used_arc_outer":  used_arc_outer,
         "magnet_radial_spare": steel_outer_radius - magnet_outer_radius,
     }
 
@@ -151,7 +203,22 @@ def points_attr(points: list[tuple[float, float]]) -> str:
 
 
 def generate_cross_section_svg(data: dict) -> str:
-    """Radial cross-section viewed from outside; base at top, walls hang down."""
+    """Radial cross-section: base at BOTTOM (Z=0), walls extend upward.
+
+    Axial layout (bottom to top):
+      Z0=0       print-bed face (bottom of base)
+      Z1         top of base / cavity floor
+      Z2         magnet zone ceiling
+      Z3         steel seat (ring rests here)
+      Z4         top of chamfer lead-in (open mouth of cavity)
+      Z5         snap tooth tip
+
+    Radial layout (left to right):
+      x=0        cover inner edge (5.75 in ID)
+      x=cw       steel inner edge (6 in ID)
+      x=cw+sw    steel outer edge (8 in OD)
+      x=span     cover outer edge (8.25 in OD)
+    """
     width = 300.0
     height = 170.0
     lines = svg_header(width, height, "10 in half-ring cover \u2014 radial cross section")
