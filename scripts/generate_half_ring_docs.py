@@ -28,13 +28,15 @@ def design_data() -> dict:
     base_thickness = 1.0
     magnet_wall = 2.04
     steel_thickness = INCH / 8.0
-    steel_wall = INCH / 4.0 - 0.1
+    # Cover walls are 1/8 in thick on each side of the steel ring, giving
+    # 5.75 in ID and 8.25 in OD for the printed cover.
+    cover_wall = INCH / 8.0
     steel_wall_extra = 1.0
     snap_overhang = 0.2
     outer_tab_width = 2.0
     outer_tab_overhang = 1.0
-    cover_inner_radius = steel_inner_radius - steel_wall
-    cover_outer_radius = steel_outer_radius + steel_wall
+    cover_inner_radius = steel_inner_radius - cover_wall
+    cover_outer_radius = steel_outer_radius + cover_wall
     steel_margin = (steel_outer_radius - steel_inner_radius - magnet_length) / 2.0
     magnet_inner_radius = steel_inner_radius + steel_margin
     magnet_outer_radius = magnet_inner_radius + magnet_length
@@ -60,7 +62,7 @@ def design_data() -> dict:
         "magnets_per_half": magnets_per_half,
         "base_thickness": base_thickness,
         "magnet_wall": magnet_wall,
-        "steel_wall": steel_wall,
+        "cover_wall": cover_wall,
         "steel_wall_extra": steel_wall_extra,
         "snap_overhang": snap_overhang,
         "outer_tab_width": outer_tab_width,
@@ -149,157 +151,183 @@ def points_attr(points: list[tuple[float, float]]) -> str:
 
 
 def generate_cross_section_svg(data: dict) -> str:
+    """Radial cross-section viewed from outside; base at top, walls hang down."""
     width = 300.0
     height = 170.0
-    lines = svg_header(width, height, '10 in half-ring cover — radial cross section')
+    lines = svg_header(width, height, "10 in half-ring cover \u2014 radial cross section")
 
-    x0 = 58.0
-    y_base_bottom = 132.0
-    sx = 5.8
-    sy = 5.8
+    # True-scale coordinate system
+    # x-axis: radial position measured from the cover inner edge (left = cover ID)
+    # y-axis: axial depth below the base bottom face (top of drawing = base outer face)
+    x0 = 36.0          # SVG x of cover inner edge
+    y_base_top = 38.0  # SVG y of base top face (outer/print-bed face)
+    sx = 7.0            # mm → SVG units (radial)
+    sy = 7.0            # mm → SVG units (axial, downward)
 
-    def x(mm: float) -> float:
+    def xp(mm: float) -> float:
         return x0 + mm * sx
 
-    def y(mm: float) -> float:
-        return y_base_bottom - mm * sy
+    def yp_below(mm: float) -> float:
+        """mm below base bottom face → SVG y (downward)."""
+        return y_base_top + data["base_thickness"] * sy + mm * sy
 
-    cover_span = data["cover_radial_span"]
-    steel_start = data["steel_inner_radius"] - data["cover_inner_radius"]
-    steel_end = data["steel_outer_radius"] - data["cover_inner_radius"]
-    magnet_start = data["magnet_inner_radius"] - data["cover_inner_radius"]
-    magnet_end = data["magnet_outer_radius"] - data["cover_inner_radius"]
+    def yp_base(mm: float) -> float:
+        """mm above base bottom face (into base) → SVG y (upward from base bottom)."""
+        return y_base_top + data["base_thickness"] * sy - mm * sy
 
-    base_top = data["base_thickness"]
-    magnet_top = base_top + data["magnet_thickness"]
-    steel_top = magnet_top + data["steel_thickness"]
-    clip_wall_depth = data["steel_thickness"] + data["steel_wall_extra"]
-    wall_top = base_top + clip_wall_depth
-    cover_id = 2.0 * data["cover_inner_radius"] / INCH
-    cover_od = 2.0 * data["cover_outer_radius"] / INCH
+    # Radial offsets from cover inner edge
+    cover_span  = data["cover_radial_span"]          # 31.75 mm
+    steel_start = data["steel_inner_radius"] - data["cover_inner_radius"]  # 3.175 mm
+    steel_end   = data["steel_outer_radius"]  - data["cover_inner_radius"]  # 28.575 mm
+    mag_start   = data["magnet_inner_radius"] - data["cover_inner_radius"]  # 5.875 mm
+    mag_end     = data["magnet_outer_radius"]  - data["cover_inner_radius"]  # 25.875 mm
 
-    lines.append(f'  <text x="8" y="9" class="label">Half Ring Over Magnets — radial cross section through one magnet</text>')
+    bt     = data["base_thickness"]      # 1.0 mm
+    mt     = data["magnet_thickness"]    # 2.0 mm
+    st     = data["steel_thickness"]     # 3.175 mm
+    swe    = data["steel_wall_extra"]    # 1.0 mm
+    wall_h = st + swe                    # 4.175 mm total wall depth below base
+    snap   = data["snap_overhang"]       # 0.2 mm
+    cw     = data["cover_wall"]          # 3.175 mm (1/8 in)
+
+    cid = 2.0 * data["cover_inner_radius"] / INCH
+    cod = 2.0 * data["cover_outer_radius"] / INCH
+
+    # ── Title / legend ────────────────────────────────────────────────
     lines.append(
-        f'  <text x="8" y="14.5" class="note">To-scale section (same X/Y scale): printed cover in gray, magnet in blue, steel backing ring in dark gray.</text>'
-    )
-
-    # Base plate.
-    lines.append(
-        f'  <rect x="{x(0):.3f}" y="{y(base_top):.3f}" width="{cover_span * sx:.3f}" height="{data["base_thickness"] * sy:.3f}" fill="#d9d9d9" stroke="#666" stroke-width="0.5"/>'
-    )
-
-    # Magnet stop walls.
-    for wall_x in (magnet_start - data["magnet_wall"], magnet_end):
-        lines.append(
-            f'  <rect x="{x(wall_x):.3f}" y="{y(magnet_top):.3f}" width="{data["magnet_wall"] * sx:.3f}" height="{data["magnet_thickness"] * sy:.3f}" fill="#c7c7c7" stroke="#666" stroke-width="0.4"/>'
-        )
-
-    # Steel capture walls.
-    for wall_x in (steel_start, steel_end - data["steel_wall"]):
-        lines.append(
-            f'  <rect x="{x(wall_x):.3f}" y="{y(wall_top):.3f}" width="{data["steel_wall"] * sx:.3f}" height="{clip_wall_depth * sy:.3f}" fill="#a8a8a8" stroke="#666" stroke-width="0.45"/>'
-        )
-
-    # Snap lips at steel-cavity top edge.
-    left_lip_x = x(steel_start + data["steel_wall"] - data["snap_overhang"])
-    right_lip_x = x(steel_end - data["steel_wall"])
-    lip_y = y(wall_top + 0.12)
-    lip_w = data["snap_overhang"] * sx
-    lip_h = 0.55 * sy
-    lines.append(
-        f'  <rect x="{left_lip_x:.3f}" y="{lip_y:.3f}" width="{lip_w:.3f}" height="{lip_h:.3f}" fill="#8f8f8f" stroke="#666" stroke-width="0.3"/>'
+        f'  <text x="8" y="9" class="label">Half-ring cover \u2014 radial cross section (base at top, walls hang down)</text>'
     )
     lines.append(
-        f'  <rect x="{right_lip_x:.3f}" y="{lip_y:.3f}" width="{lip_w:.3f}" height="{lip_h:.3f}" fill="#8f8f8f" stroke="#666" stroke-width="0.3"/>'
+        f'  <text x="8" y="14.5" class="note">True scale \u2014 gray: printed cover; dark gray: 1/8 in steel ring (reference); blue: 20\xd72 mm magnets. ID {cid:.3f} in / OD {cod:.3f} in.</text>'
     )
 
-    # Assembly inserts for context.
+    # ── Radial span dimension above the base ─────────────────────────
+    dim_y = y_base_top - 7.0
     lines.append(
-        f'  <rect x="{x(magnet_start):.3f}" y="{y(magnet_top):.3f}" width="{data["magnet_length"] * sx:.3f}" height="{data["magnet_thickness"] * sy:.3f}" fill="#4a90d9" stroke="#2e6bb0" stroke-width="0.5"/>'
+        f'  <line x1="{xp(0):.2f}" y1="{dim_y:.2f}" x2="{xp(cover_span):.2f}" y2="{dim_y:.2f}" class="dim"/>'
     )
     lines.append(
-        f'  <rect x="{x(steel_start):.3f}" y="{y(steel_top):.3f}" width="{(steel_end - steel_start) * sx:.3f}" height="{data["steel_thickness"] * sy:.3f}" fill="#8a8a8a" stroke="#555" stroke-width="0.5"/>'
-    )
-
-    # Labels inside solids.
-    lines.append(
-        f'  <text x="{x(cover_span / 2):.3f}" y="{y(0.60):.3f}" text-anchor="middle" class="text" font-size="3.1">1.0 mm base, {cover_span:.2f} mm radial span ({cover_id:.2f} in ID to {cover_od:.2f} in OD)</text>'
-    )
-    lines.append(
-        f'  <text x="{x((magnet_start + magnet_end) / 2):.3f}" y="{y(base_top + 1.2):.3f}" text-anchor="middle" font-size="3.2" fill="white" font-family="sans-serif">20×2 mm magnet section</text>'
-    )
-    lines.append(
-        f'  <text x="{x((steel_start + steel_end) / 2):.3f}" y="{y(magnet_top + 1.55):.3f}" text-anchor="middle" font-size="3.2" fill="white" font-family="sans-serif">1/8 in steel ring</text>'
+        f'  <text x="{xp(cover_span / 2):.2f}" y="{dim_y - 2:.2f}" text-anchor="middle" class="text" font-size="3.1">'
+        f'{cover_span / INCH:.3f} in = {cover_span:.2f} mm radial span</text>'
     )
 
-    # Main dimensions.
+    # ── Base plate (full span, 1 mm thick) ───────────────────────────
     lines.append(
-        f'  <line x1="{x(0):.3f}" y1="{y(9.0):.3f}" x2="{x(cover_span):.3f}" y2="{y(9.0):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{x(cover_span / 2):.3f}" y="{y(9.45):.3f}" text-anchor="middle" class="text" font-size="3.1">{(cover_span / INCH):.3f} in radial base span = {cover_span:.2f} mm</text>'
-    )
-    lines.append(
-        f'  <line x1="{x(-2.0):.3f}" y1="{y(0):.3f}" x2="{x(-2.0):.3f}" y2="{y(base_top):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{x(-2.6):.3f}" y="{y(0.62):.3f}" text-anchor="end" class="text" font-size="3.0">1.0</text>'
-    )
-    lines.append(
-        f'  <line x1="{x(-4.0):.3f}" y1="{y(base_top):.3f}" x2="{x(-4.0):.3f}" y2="{y(magnet_top):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{x(-4.6):.3f}" y="{y(base_top + 1.1):.3f}" text-anchor="end" class="text" font-size="3.0">2.0</text>'
-    )
-    lines.append(
-        f'  <line x1="{x(-6.0):.3f}" y1="{y(magnet_top):.3f}" x2="{x(-6.0):.3f}" y2="{y(steel_top):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{x(-6.6):.3f}" y="{y(magnet_top + 1.8):.3f}" text-anchor="end" class="text" font-size="3.0">3.175</text>'
-    )
-    lines.append(
-        f'  <line x1="{x(-8.1):.3f}" y1="{y(base_top):.3f}" x2="{x(-8.1):.3f}" y2="{y(wall_top):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{x(-8.7):.3f}" y="{y(base_top + 2.2):.3f}" text-anchor="end" class="text" font-size="3.0">4.175 wall depth</text>'
-    )
-    lines.append(
-        f'  <line x1="{x(magnet_start - data["magnet_wall"]):.3f}" y1="{y(7.1):.3f}" x2="{x(magnet_start):.3f}" y2="{y(7.1):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{x(magnet_start - data["magnet_wall"] / 2):.3f}" y="{y(7.45):.3f}" text-anchor="middle" class="text" font-size="3.0">2.04 wall</text>'
-    )
-    lines.append(
-        f'  <line x1="{x(steel_start):.3f}" y1="{y(10.3):.3f}" x2="{x(steel_start + data["steel_wall"]):.3f}" y2="{y(10.3):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{x(steel_start + data["steel_wall"] / 2):.3f}" y="{y(10.65):.3f}" text-anchor="middle" class="text" font-size="3.0">{data["steel_wall"]:.2f} wall</text>'
-    )
-    lines.append(
-        f'  <line x1="{left_lip_x:.3f}" y1="{y(wall_top + 1.3):.3f}" x2="{left_lip_x + lip_w:.3f}" y2="{y(wall_top + 1.3):.3f}" class="dim"/>'
-    )
-    lines.append(
-        f'  <text x="{left_lip_x + lip_w / 2:.3f}" y="{y(wall_top + 1.65):.3f}" text-anchor="middle" class="text" font-size="3.0">0.2 snap lip</text>'
+        f'  <rect x="{xp(0):.2f}" y="{y_base_top:.2f}"'
+        f' width="{cover_span * sx:.2f}" height="{bt * sy:.2f}"'
+        f' fill="#d9d9d9" stroke="#666" stroke-width="0.5"/>'
     )
 
-    # Radius callouts.
+    # ── Inner capture wall (x=0 → x=steel_start, full wall_h deep) ───
     lines.append(
-        f'  <path d="M {x(steel_start):.3f},{y(steel_top + 0.8):.3f} L {x(cover_span + 1.5):.3f},{y(steel_top + 1.8):.3f}" class="callout"/>'
+        f'  <rect x="{xp(0):.2f}" y="{yp_below(0):.2f}"'
+        f' width="{steel_start * sx:.2f}" height="{wall_h * sy:.2f}"'
+        f' fill="#c0c0c0" stroke="#666" stroke-width="0.5"/>'
+    )
+
+    # ── Outer capture wall (x=steel_end → x=cover_span, full wall_h deep) ──
+    lines.append(
+        f'  <rect x="{xp(steel_end):.2f}" y="{yp_below(0):.2f}"'
+        f' width="{(cover_span - steel_end) * sx:.2f}" height="{wall_h * sy:.2f}"'
+        f' fill="#c0c0c0" stroke="#666" stroke-width="0.5"/>'
+    )
+
+    # ── Magnet reference (blue, inside cavity against base bottom) ────
+    lines.append(
+        f'  <rect x="{xp(mag_start):.2f}" y="{yp_below(0):.2f}"'
+        f' width="{(mag_end - mag_start) * sx:.2f}" height="{mt * sy:.2f}"'
+        f' fill="#4a90d9" stroke="#2e6bb0" stroke-width="0.5"/>'
     )
     lines.append(
-        f'  <text x="{x(cover_span + 2.1):.3f}" y="{y(steel_top + 2.1):.3f}" class="note">6 in ID steel starts +{steel_start:.2f} mm from cover ID</text>'
+        f'  <text x="{xp((mag_start + mag_end) / 2):.2f}" y="{yp_below(mt / 2) + 1.2:.2f}"'
+        f' text-anchor="middle" font-size="3.0" fill="white" font-family="sans-serif">20\xd72 mm magnet</text>'
+    )
+
+    # ── Steel ring reference (dark gray, below magnets) ───────────────
+    lines.append(
+        f'  <rect x="{xp(steel_start):.2f}" y="{yp_below(mt):.2f}"'
+        f' width="{(steel_end - steel_start) * sx:.2f}" height="{st * sy:.2f}"'
+        f' fill="#888" stroke="#555" stroke-width="0.5"/>'
     )
     lines.append(
-        f'  <path d="M {x(magnet_start):.3f},{y(base_top + 0.4):.3f} L {x(2.2):.3f},{y(base_top - 2.1):.3f}" class="callout"/>'
+        f'  <text x="{xp((steel_start + steel_end) / 2):.2f}" y="{yp_below(mt + st / 2) + 1.2:.2f}"'
+        f' text-anchor="middle" font-size="3.0" fill="white" font-family="sans-serif">1/8 in steel ring</text>'
+    )
+
+    # ── Snap overhangs at the free (open) end of each capture wall ───
+    # Inner snap: protrudes inward from inner wall's cavity-facing edge
+    lines.append(
+        f'  <rect x="{xp(steel_start):.2f}" y="{yp_below(wall_h):.2f}"'
+        f' width="{snap * sx:.2f}" height="{snap * sy:.2f}"'
+        f' fill="#777" stroke="#555" stroke-width="0.3"/>'
+    )
+    # Outer snap: protrudes inward from outer wall's cavity-facing edge
+    lines.append(
+        f'  <rect x="{xp(steel_end - snap):.2f}" y="{yp_below(wall_h):.2f}"'
+        f' width="{snap * sx:.2f}" height="{snap * sy:.2f}"'
+        f' fill="#777" stroke="#555" stroke-width="0.3"/>'
+    )
+
+    # ── Axial dimension lines (left side) ────────────────────────────
+    left_dim_x = xp(-2.5)
+    # Base thickness
+    lines.append(
+        f'  <line x1="{left_dim_x:.2f}" y1="{y_base_top:.2f}" x2="{left_dim_x:.2f}" y2="{yp_below(0):.2f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="{x(2.0):.3f}" y="{y(base_top - 2.3):.3f}" text-anchor="end" class="note">magnet band centered on steel ring</text>'
+        f'  <text x="{left_dim_x - 1:.2f}" y="{(y_base_top + yp_below(0)) / 2 + 1:.2f}"'
+        f' text-anchor="end" class="text" font-size="2.8">{bt:.1f}</text>'
+    )
+    # Wall depth
+    lines.append(
+        f'  <line x1="{left_dim_x - 3:.2f}" y1="{yp_below(0):.2f}" x2="{left_dim_x - 3:.2f}" y2="{yp_below(wall_h):.2f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="{x((steel_start + steel_end) / 2):.3f}" y="{y(-1.6):.3f}" text-anchor="middle" class="note">steel-capture walls shown on both sides of the 1/8 in steel ring</text>'
+        f'  <text x="{left_dim_x - 4:.2f}" y="{(yp_below(0) + yp_below(wall_h)) / 2 + 1:.2f}"'
+        f' text-anchor="end" class="text" font-size="2.8">{wall_h:.3f}</text>'
+    )
+
+    # ── Radial dimension lines (bottom area) ─────────────────────────
+    bot_y1 = yp_below(wall_h) + 9.0
+    bot_y2 = bot_y1 + 8.0
+    bot_y3 = bot_y2 + 8.0
+
+    # Cover wall width (inner side)
+    lines.append(
+        f'  <line x1="{xp(0):.2f}" y1="{bot_y1:.2f}" x2="{xp(steel_start):.2f}" y2="{bot_y1:.2f}" class="dim"/>'
     )
     lines.append(
-        f'  <text x="8" y="160" class="note">Stack shown to scale from base upward: 1.0 mm base, 2.0 mm magnet layer, 3.175 mm steel thickness, 1.0 mm extra wall extension, and 0.2 mm snap overhang.</text>'
+        f'  <text x="{xp(steel_start / 2):.2f}" y="{bot_y1 - 1.5:.2f}"'
+        f' text-anchor="middle" class="text" font-size="2.8">{cw:.3f} (1/8 in)</text>'
+    )
+
+    # Steel ring width
+    lines.append(
+        f'  <line x1="{xp(steel_start):.2f}" y1="{bot_y2:.2f}" x2="{xp(steel_end):.2f}" y2="{bot_y2:.2f}" class="dim"/>'
+    )
+    lines.append(
+        f'  <text x="{xp((steel_start + steel_end) / 2):.2f}" y="{bot_y2 - 1.5:.2f}"'
+        f' text-anchor="middle" class="text" font-size="2.8">{steel_end - steel_start:.2f} mm (1 in) steel ring</text>'
+    )
+
+    # Total cover span (repeated at bottom for clarity)
+    lines.append(
+        f'  <line x1="{xp(0):.2f}" y1="{bot_y3:.2f}" x2="{xp(cover_span):.2f}" y2="{bot_y3:.2f}" class="dim"/>'
+    )
+    lines.append(
+        f'  <text x="{xp(cover_span / 2):.2f}" y="{bot_y3 - 1.5:.2f}"'
+        f' text-anchor="middle" class="text" font-size="2.8">cover: {cid:.3f} in ID to {cod:.3f} in OD</text>'
+    )
+
+    # ── Callout: snap detail ──────────────────────────────────────────
+    snap_callout_x = xp(steel_start + snap / 2)
+    snap_callout_y = yp_below(wall_h + snap)
+    lines.append(
+        f'  <path d="M {snap_callout_x:.2f},{snap_callout_y:.2f} L {xp(-1):.2f},{snap_callout_y + 8:.2f}" class="callout"/>'
+    )
+    lines.append(
+        f'  <text x="{xp(-1.5):.2f}" y="{snap_callout_y + 10:.2f}" text-anchor="end" class="note">'
+        f'0.2 mm snap on both inner and outer walls</text>'
     )
 
     return svg_footer(lines)
