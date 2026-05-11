@@ -29,7 +29,8 @@ encoder-wheel/
 │   ├── common.py           shared geometry calculations
 │   ├── generate_laser.py   → SVG for laser cutting
 │   ├── generate_cnc.py     → DXF for CNC milling
-│   └── generate_3d.py      → OpenSCAD for 3-D printing
+│   ├── generate_3d.py      → OpenSCAD for 3-D printing
+│   └── generate_multipart_ring.py → OpenSCAD multipart bell/gudgeon ring
 ├── examples/
 │   ├── encoder_wheel_12pole_laser.svg
 │   ├── encoder_wheel_24pole_laser.svg
@@ -44,6 +45,10 @@ encoder-wheel/
     ├── top_view.svg
     ├── cross_section.svg
     └── geometry.svg
+designs/
+├── primary_half_ring.md
+├── secondary_half_ring.md
+└── u_mount_plate.md
 ```
 
 ---
@@ -115,6 +120,9 @@ python scripts/generate_cnc.py --output my_wheel.dxf
 
 # 3-D printing OpenSCAD (with retaining tabs and back plate)
 python scripts/generate_3d.py --output my_wheel.scad
+
+# Multipart bell/gudgeon ring (90 magnets, 6"/8" steel backing defaults)
+python scripts/generate_multipart_ring.py --output multipart_encoder_ring.scad
 ```
 
 Open the resulting files in your favourite CAD / laser / slicer tool.
@@ -290,6 +298,14 @@ Pre-generated example files are in the `examples/` directory:
 
 Regenerate any file by running the corresponding script with the desired
 parameters.
+
+For multipart bell/gudgeon designs, run:
+
+```bash
+python scripts/generate_multipart_ring.py --output multipart_encoder_ring.scad
+```
+
+Part notes and illustrations are in `designs/`.
 
 ---
 

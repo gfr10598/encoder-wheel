@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 220" width="420" height="220">
+  <rect width="420" height="220" fill="#fff"/>
+  <path d="M40,180 A160,160 0 0 1 380,180 L340,180 A120,120 0 0 0 80,180 Z" fill="#e8eef9" stroke="#1f3a6d" stroke-width="2"/>
+  <path d="M70,178 A130,130 0 0 1 350,178" stroke="#2f6fb8" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/>
+  <g fill="#4f83cc" opacity="0.9">
+    <rect x="96" y="156" width="8" height="18" rx="1"/>
+    <rect x="118" y="141" width="8" height="18" rx="1"/>
+    <rect x="146" y="128" width="8" height="18" rx="1"/>
+    <rect x="176" y="119" width="8" height="18" rx="1"/>
+    <rect x="206" y="114" width="8" height="18" rx="1"/>
+    <rect x="236" y="116" width="8" height="18" rx="1"/>
+    <rect x="266" y="124" width="8" height="18" rx="1"/>
+    <rect x="294" y="137" width="8" height="18" rx="1"/>
+    <rect x="316" y="153" width="8" height="18" rx="1"/>
+  </g>
+  <text x="210" y="208" text-anchor="middle" font-family="monospace" font-size="12" fill="#1f3a6d">Primary half ring with magnet pockets and seam lugs</text>
+</svg>

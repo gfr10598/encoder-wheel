@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 280" width="420" height="280">
+  <rect width="420" height="280" fill="#fff"/>
+  <path d="M80,240 A130,130 0 1 1 340,240 L300,240 A90,90 0 1 0 120,240 Z" fill="#f8efe6" stroke="#824f1e" stroke-width="2"/>
+  <rect x="176" y="14" width="68" height="42" fill="#fff"/>
+  <circle cx="210" cy="150" r="58" fill="#fff" stroke="#824f1e" stroke-dasharray="4 3" stroke-width="1.5"/>
+  <g fill="#cc7c2d">
+    <rect x="132" y="188" width="7" height="16" rx="1"/>
+    <rect x="151" y="170" width="7" height="16" rx="1"/>
+    <rect x="173" y="158" width="7" height="16" rx="1"/>
+    <rect x="196" y="152" width="7" height="16" rx="1"/>
+    <rect x="219" y="152" width="7" height="16" rx="1"/>
+    <rect x="242" y="158" width="7" height="16" rx="1"/>
+    <rect x="264" y="170" width="7" height="16" rx="1"/>
+    <rect x="283" y="188" width="7" height="16" rx="1"/>
+  </g>
+  <g fill="#333">
+    <circle cx="146" cy="132" r="3"/><circle cx="164" cy="132" r="2.5"/>
+    <circle cx="184" cy="116" r="3"/><circle cx="201" cy="116" r="2.5"/>
+    <circle cx="219" cy="116" r="3"/><circle cx="236" cy="116" r="2.5"/>
+    <circle cx="254" cy="132" r="3"/><circle cx="272" cy="132" r="2.5"/>
+  </g>
+  <text x="210" y="266" text-anchor="middle" font-family="monospace" font-size="12" fill="#824f1e">U-shaped mount plate with magnet pockets and set/lock screw holes</text>
+</svg>
