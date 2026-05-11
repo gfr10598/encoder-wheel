@@ -111,9 +111,9 @@ class MultipartEncoderScadGenerator:
         for i in range(self.spec.n_magnets):
             ang = (360.0 * i) / self.spec.n_magnets
             if start < end:
-                in_range = start < ang < end
+                in_range = start <= ang <= end
             else:
-                in_range = ang > start or ang < end
+                in_range = ang >= start or ang <= end
             if in_range:
                 indices.append(i)
         return indices
@@ -124,8 +124,8 @@ class MultipartEncoderScadGenerator:
         primary_start = s.assembly_gap_deg / 2.0
         secondary_start = 90.0 + s.assembly_gap_deg / 2.0
         magnet_r = s.ring_inner_radius_mm + 1.0
-        mount_magnets = max(1, round(s.n_magnets * (s.mount_plate_arc_deg / 360.0)))
-        mount_step = s.mount_plate_arc_deg / mount_magnets
+        mount_plate_magnet_count = max(1, round(s.n_magnets * (s.mount_plate_arc_deg / 360.0)))
+        mount_step = s.mount_plate_arc_deg / mount_plate_magnet_count
         mount_start = -s.mount_plate_arc_deg / 2.0
         primary_indices = self._magnet_indices_for_segment(primary_start, seg_sweep)
         secondary_indices = self._magnet_indices_for_segment(secondary_start, seg_sweep)
@@ -210,7 +210,7 @@ class MultipartEncoderScadGenerator:
             "            set_screw_hole(-45 + k * 30);",
             "            lock_screw_hole(-33 + k * 30);",
             "        }",
-            f"        for (j = [0 : {mount_magnets - 1}]) {{",
+            f"        for (j = [0 : {mount_plate_magnet_count - 1}]) {{",
             f"            rotate([0, 0, {mount_start:.5f} + j * {mount_step:.5f} + {mount_step / 2.0:.5f}])",
             "                magnet_pocket(open_hole_radius + 8.0, mount_plate_thick - magnet_thickness);",
             "        }",
@@ -277,7 +277,7 @@ def main() -> None:
         handle.write(scad)
     print(f"Wrote {spec.output_file}")
     print(f"  Ring ID/OD: {spec.steel_inner_diameter_mm:.1f} / {spec.steel_outer_diameter_mm:.1f} mm")
-    print(f"  Open hole : {spec.open_hole_diameter_mm:.1f} mm (>= 101.6 mm)")
+    print(f"  Open hole : {spec.open_hole_diameter_mm:.1f} mm (>= {MIN_OPEN_HOLE_DIAMETER_MM:.1f} mm)")
     print(f"  Magnets   : {spec.n_magnets} @ {spec.magnet_width_mm:.1f} mm tangential width")
 
 
