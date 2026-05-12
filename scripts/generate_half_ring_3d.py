@@ -111,6 +111,22 @@ def _revolve_xz_profile(xz_pts: list[tuple[float, float]], arc_deg: float = 180.
     return Solid.revolve(face, arc_deg, Axis.Z)
 
 
+def _torus_cut(r_center: float, z_center: float, r_tube: float, n_pts: int = 24) -> Shape:
+    """Half-torus (180°) formed by revolving a circle in XZ around Z.
+
+    Creates a quarter-circle relief groove when intersected with a corner.
+    r_center: radius of the circle centre from Z axis
+    z_center: axial position of the circle centre
+    r_tube  : radius of the cross-section circle (= dogbone_radius)
+    """
+    pts = [
+        (r_center + r_tube * math.cos(i * math.tau / n_pts),
+         z_center + r_tube * math.sin(i * math.tau / n_pts))
+        for i in range(n_pts)
+    ]
+    return _revolve_xz_profile(pts)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Reference bodies  (not printed — used for intersection checks only)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -130,7 +146,8 @@ def make_single_magnet(data: dict) -> Shape:
     with BuildPart() as p:
         Box(L, W, T, align=(Align.MIN, Align.CENTER, Align.MIN))
         fillet(p.edges(), radius=0.2)
-    return p.part.moved(Location((mir, 0, z1)))
+    z_bottom = data["z2"] - T   # magnet hangs from steel bottom face at z2
+    return p.part.moved(Location((mir, 0, z_bottom)))
 
 
 def make_magnet_array(data: dict) -> Compound:
@@ -239,41 +256,73 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
     return void.rotate(Axis.Z, angle)
 
 
-def make_magnet_dogbones(data: dict) -> Compound:
-    """0.25 mm radius axial cylinders at all 4 base corners of every pocket.
+def make_steel_corner_dogbones(data: dict) -> Compound:
+    """Half-torus cuts at the two floor corners of the steel seat (z=z2).
 
-    One cylinder per corner:  inner/outer radial face × both angular ends.
-    Each cylinder spans z=0 → z=z2, clearing the floor corner so the magnet
-    can seat without a radius-constrained interference fit.
+    Inner corner: torus at r = sir + 0.05 mm clearance, z = z2
+    Outer corner: torus at r = sor - 0.05 mm clearance, z = z2
+    The quarter-circle relief ensures the steel ring seats fully.
     """
-    mir    = data["magnet_inner_radius"] - 0.05   # expanded pocket inner face
-    mor    = data["magnet_outer_radius"] + 0.05   # expanded pocket outer face
-    W      = data["magnet_width"] + 0.10          # expanded pocket width
-    z2     = data["z2"]
-    r_dog  = data["dogbone_radius"]               # 0.25 mm
-    theta  = data["pitch_angle"]
+    sir = data["steel_inner_radius"]
+    sor = data["steel_outer_radius"]
+    z2  = data["z2"]
+    r   = data["dogbone_radius"]
+    clr = 0.05
+    return Compound([
+        _torus_cut(sir + clr, z2, r),
+        _torus_cut(sor - clr, z2, r),
+    ])
 
+
+def make_magnet_pocket_dogbones(data: dict) -> Compound:
+    """Dogbone relief cuts at all four sides of every magnet pocket.
+
+    Radial faces (inner + outer): continuous half-tori at r=mir-clr and
+    r=mor+clr at z=z1.  These are full 180° rings — they also round the
+    fin base corners by 0.25 mm, which is harmless.
+
+    Tangential faces (angular ends): one cylinder per pocket per end per
+    radial face = 4 × 45 = 180 cylinders.  Not visible in the Y=0
+    cross-section but present in the STL.
+    """
+    mir_f = data["magnet_inner_radius"] - 0.05
+    mor_f = data["magnet_outer_radius"] + 0.05
+    z1    = data["z1"]
+    z2    = data["z2"]
+    r     = data["dogbone_radius"]
+    theta = data["pitch_angle"]
+    W_exp = data["magnet_width"] + 0.10
+
+    # ── Continuous tori at the two radial faces ───────────────────────
+    inner_torus = _torus_cut(mir_f, z1, r)
+    outer_torus = _torus_cut(mor_f, z1, r)
+
+    # ── Cylinders at the tangential (angular) ends ─────────────────────
+    cyl_h = (z2 - z1) + r
     with BuildPart() as tmpl:
         with BuildSketch(Plane.XY):
-            Circle(r_dog)
-        extrude(amount=z2 + r_dog)
+            Circle(r)
+        extrude(amount=cyl_h)
     cyl = tmpl.part
 
-    solids = []
-    for i in range(data["magnets_per_half"]):
-        angle = i * theta           # radians
-        for r in (mir, mor):        # inner and outer radial pocket face
-            for w in (-W / 2, +W / 2):   # both tangential ends
-                # Corner position in lab frame
-                x = r * math.cos(angle) - w * math.sin(angle)
-                y = r * math.sin(angle) + w * math.cos(angle)
-                solids.append(cyl.moved(Location((x, y, 0.0))))
+    mid_r    = (mir_f + mor_f) / 2.0
+    half_arc = math.asin(min(W_exp / 2.0 / mid_r, 1.0))
 
-    return Compound(solids)
+    end_cyls = []
+    for i in range(data["magnets_per_half"]):
+        angle = i * theta
+        for side in (+1, -1):
+            t = angle + side * half_arc
+            for r_face in (mir_f, mor_f):
+                cx = r_face * math.cos(t)
+                cy = r_face * math.sin(t)
+                end_cyls.append(cyl.moved(Location((cx, cy, z1))))
+
+    return Compound([inner_torus, outer_torus] + end_cyls)
 
 
 def make_cover(data: dict) -> Shape:
-    """Subtractive build: blank annulus → cut steel cavity → cut magnet pockets → cut dogbones."""
+    """Subtractive build: blank → steel cavity → magnet pockets → dogbones."""
     print("  blank …", end=" ", flush=True)
     cover = make_cover_blank(data)
 
@@ -285,8 +334,11 @@ def make_cover(data: dict) -> Shape:
     for i in range(n):
         cover = cover.cut(make_magnet_pocket_void(data, i))
 
-    print("dogbones …", end=" ", flush=True)
-    cover = cover.cut(make_magnet_dogbones(data))
+    print("steel dogbones …", end=" ", flush=True)
+    cover = cover.cut(make_steel_corner_dogbones(data))
+
+    print("pocket dogbones …", end=" ", flush=True)
+    cover = cover.cut(make_magnet_pocket_dogbones(data))
 
     print("done.")
     return cover
