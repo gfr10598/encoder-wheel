@@ -262,26 +262,19 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
     mir_f = mir - clr                     # expanded inner radial face
     mor_f = mir_f + L                     # expanded outer radial face
 
-    # ── Core rectangular void ────────────────────────────────────────
+    # ── Core rectangular void + dogbone cylinders ───────────────────
+    # Build everything inside one BuildPart so all shapes are automatically
+    # fused into a single solid.  BuildPart context-mode ADD is the default
+    # for each extrude(), so the box and all 4 cylinders union into one body.
     with BuildPart() as p:
         Box(L, W, T, align=(Align.MIN, Align.CENTER, Align.MIN))
-    box_void = p.part.moved(Location((mir_f, 0.0, z1)))
-
-    # ── Dogbone cylinders at the 4 vertical corner edges ────────────
-    # Placed at z1, height T: bottom exactly at z1, never below the base.
-    # Built as a Compound (avoids unreliable boolean-on-void fuse calls).
-    with BuildPart() as c:
-        with BuildSketch(Plane.XY):
-            Circle(r_dog)
-        extrude(amount=T)
-    cyl = c.part
-
-    cyl_shapes = [
-        cyl.moved(Location((cx, cy, z1)))
-        for cx in (mir_f, mor_f)
-        for cy in (-W / 2, +W / 2)
-    ]
-    void = Compound([box_void] + cyl_shapes)
+        # 4 corner cylinders — placed relative to box origin (mir_f, 0, z1)
+        for cx_off in (0.0, L):
+            for cy_off in (-W / 2, +W / 2):
+                with BuildSketch(Plane(origin=(cx_off, cy_off, 0))):
+                    Circle(r_dog)
+                extrude(amount=T)
+    void = p.part.moved(Location((mir_f, 0.0, z1)))
 
     # ── Rotate to pocket's angular position ──────────────────────────
     angle = math.degrees(index * data["pitch_angle"])

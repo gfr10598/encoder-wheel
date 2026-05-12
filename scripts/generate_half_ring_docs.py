@@ -354,16 +354,17 @@ def generate_cross_section_svg(data: dict) -> str:
                       size=0.65, color="#666"))
 
     # ── Zone fill bands ────────────────────────────────────────────────
-    # Magnet clearance fill: only the magnet band (mir→mor), not the full cavity
-    parts.append(rect(mir, z1, mor - mir, z2 - z1, "#4a90e2", opacity=0.20))
-    parts.append(rect(mir, z1, mor - mir, mt,        "#2e6bb0", opacity=0.50))
+    # Magnet sits at z2-mt → z2 (hangs from steel bottom face)
+    z_mag_bot = z2 - mt
+    parts.append(rect(mir, z_mag_bot, mor - mir, z2 - z_mag_bot, "#4a90e2", opacity=0.20))
+    parts.append(rect(mir, z_mag_bot, mor - mir, mt,              "#2e6bb0", opacity=0.50))
     parts.append(rect(sir, z2, sor - sir, z3 - z2,  "#777",    opacity=0.50))
 
     # Small zone labels — only where there is enough room
     cx_cav = (sir + sor) / 2
     parts.append(text(cx_cav, z2 + (z3 - z2) / 2 + 0.3,
                       "steel (ref)", size=0.7, color="white"))
-    parts.append(text((mir + mor) / 2, z1 + mt / 2 + 0.3,
+    parts.append(text((mir + mor) / 2, z_mag_bot + mt / 2 + 0.3,
                       "magnet (ref)", size=0.7, color="white"))
 
     # ── Geometry (ExportSVG output) ────────────────────────────────────
