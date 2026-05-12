@@ -237,10 +237,15 @@ def generate_cross_section_svg(data: dict) -> str:
     cover = make_cover(data)
     slab = Box(300, 0.01, 30, align=(Align.CENTER, Align.CENTER, Align.MIN))
     section = cover.intersect(slab)
-    xz_face = next(
+    xz_faces = [
         f for f in section.faces()
         if f.normal_at().Y > 0.9 and f.bounding_box().min.X > 0
-    )
+    ]
+    if len(xz_faces) == 1:
+        xz_face = xz_faces[0]
+    else:
+        from build123d import Compound as _Compound
+        xz_face = _Compound(xz_faces)
 
     # ── 2. Rotate +90° around X: (x,0,z)→(x,−z,0) → face in XY plane ─
     #    ExportSVG's "scale(1,−1)" group then renders at (x, z) on screen,

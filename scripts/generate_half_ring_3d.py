@@ -136,11 +136,12 @@ def make_single_magnet(data: dict) -> Shape:
 def make_magnet_array(data: dict) -> Compound:
     """45 reference magnets around the Y>=0 half ring."""
     theta = data["pitch_angle"]
-    start = math.pi - theta / 2.0
+    # First magnet at angle 0 (Y=0, X>0) so cross-section passes through its centre
+    start = 0.0
     single = make_single_magnet(data)
     magnets = []
     for i in range(data["magnets_per_half"]):
-        angle = start - i * theta
+        angle = start + i * theta
         magnets.append(single.rotate(Axis.Z, math.degrees(angle)))
     return Compound(magnets)
 
@@ -159,221 +160,134 @@ def make_steel_half_ring(data: dict) -> Shape:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Printed components
+# Printed cover — built subtractively
 # ─────────────────────────────────────────────────────────────────────────────
 
-def make_base(data: dict) -> Shape:
-    """1 mm base skin, full cover radial span, z0→z1."""
+def make_cover_blank(data: dict) -> Shape:
+    """Solid half-ring annulus: cover ID → cover OD, z0 → z5.
+
+    All material starts here; subsequent cuts define every feature.
+    """
     cir = data["cover_inner_radius"]
     cor = data["cover_outer_radius"]
-    z1  = data["z1"]
+    z5  = data["z5"]
     with BuildPart() as p:
         with BuildSketch(Plane.XY):
             _semi_annulus_sketch(cir, cor)
-        extrude(amount=z1)
+        extrude(amount=z5)
     return p.part
 
 
-def make_inner_wall(data: dict) -> Shape:
-    """Inner capture wall: snap at z3 (steel top edge), chamfer from z4 to z5.
+def make_steel_cavity_void(data: dict) -> Shape:
+    """Revolve of the full steel-ring cavity: seat + snap beads + chamfer.
 
-    XZ profile (counterclockwise, viewed from +Y):
+    XZ polygon (cavity cross-section, CCW from +Y side):
 
-        cir,z1 ──── sir,z1        (base level)
-                      |
-                    sir,z3        (straight to steel seat)
-                    |
-               sir-snap,z3       (SNAP: 0.2 mm step inward at steel top)
-               sir-snap,z4       (snap lip 0.2 mm tall)
-                     ╱
-               sir-taper,z5      (chamfer widens to mouth)
-        cir,z5 ──────────
+        inner bottom (sir+clr, z2-clr)
+        outer bottom (sor-clr, z2-clr)
+        outer seat   (sor-clr, z3)
+        outer snap   (sor-snap, z3)→(sor-snap, z4)   ← snap bead
+        outer mouth  (sor+taper, z5)                  ← chamfer opens out
+        inner mouth  (sir-taper, z5)                  ← chamfer opens in
+        inner snap   (sir+snap, z4)→(sir+snap, z3)    ← snap bead
+        inner seat   (sir+clr, z3)
+
+    clr = 0.05 mm clearance on all faces.
     """
-    cir   = data["cover_inner_radius"]
-    sir   = data["steel_inner_radius"]
-    z1, z3, z4, z5 = data["z1"], data["z3"], data["z4"], data["z5"]
-    snap  = data["snap_overhang"]
-    taper = data["chamfer_taper"]
-    r_dog = data["dogbone_radius"]
+    sir, sor  = data["steel_inner_radius"], data["steel_outer_radius"]
+    z2, z3, z4, z5 = data["z2"], data["z3"], data["z4"], data["z5"]
+    snap  = data["snap_overhang"]   # 0.2 mm
+    taper = data["chamfer_taper"]   # 1.2 mm
+    clr   = 0.05                    # steel clearance
 
     xz = [
-        (cir,          z1),
-        (sir,          z1),
-        (sir,          z3 - r_dog),  # approach from below snap root
-        (sir - r_dog,  z3 - r_dog),  # groove into PETG (strain-relief slot)
-        (sir - r_dog,  z3),          # back to wall face
-        (sir,          z3),
-        (sir + snap,   z3),   # snap protrudes INTO cavity
-        (sir + snap,   z4),
-        (sir - taper,  z5),
-        (cir,          z5),
-    ]
-    return _revolve_xz_profile(xz)
-
-
-def make_outer_wall(data: dict) -> Shape:
-    """Outer capture wall: snap at z3 (steel top edge), chamfer from z4 to z5.
-
-    XZ profile (counterclockwise, viewed from +Y):
-
-        sor,z1 ──── cor,z1
-          |
-        sor,z3              (straight to steel seat)
-        sor-snap,z3         (SNAP: 0.2 mm step inward at steel top)
-        sor-snap,z4         (snap lip)
-             ╲
-        sor+taper,z5        (chamfer widens to mouth)
-        cor,z5 ──────────
-    """
-    cor   = data["cover_outer_radius"]
-    sor   = data["steel_outer_radius"]
-    z1, z3, z4, z5 = data["z1"], data["z3"], data["z4"], data["z5"]
-    snap  = data["snap_overhang"]
-    taper = data["chamfer_taper"]
-    r_dog = data["dogbone_radius"]
-
-    xz = [
-        (sor,          z1),
-        (cor,          z1),
-        (cor,          z5),
-        (sor + taper,  z5),
-        (sor - snap,   z4),
+        (sir + clr,    z2 - clr),
+        (sor - clr,    z2 - clr),
+        (sor - clr,    z3),
         (sor - snap,   z3),
-        (sor,          z3),           # step back to wall face
-        (sor + r_dog,  z3),           # groove into outer PETG
-        (sor + r_dog,  z3 - r_dog),   # groove floor
-        (sor,          z3 - r_dog),   # back to cavity face
+        (sor - snap,   z4),
+        (sor + taper,  z5),
+        (sir - taper,  z5),
+        (sir + snap,   z4),
+        (sir + snap,   z3),
+        (sir + clr,    z3),
     ]
     return _revolve_xz_profile(xz)
 
 
-def make_magnet_separators(data: dict) -> Compound | None:
-    """Radial walls between adjacent magnets, occupying z1→z2.
+def make_magnet_pocket_void(data: dict, index: int) -> Shape:
+    """Single expanded magnet pocket void, with 0.05 mm clearance on all sides.
 
-    Each separator fills the inter-magnet angular gap at the steel ring radii.
-    Returns a Compound of 44 wedge-shaped solids (or None if too narrow).
+    The pocket is a Box aligned radially at angular position ``index``,
+    spanning z1 (cavity floor) to z2+0.05 (top clearance).
     """
-    sir   = data["steel_inner_radius"]
-    sor   = data["steel_outer_radius"]
+    mir   = data["magnet_inner_radius"]
     z1    = data["z1"]
     z2    = data["z2"]
+    L     = data["magnet_length"] + 0.10  # radial:     20.10 mm
+    W     = data["magnet_width"]  + 0.10  # tangential:  5.10 mm
+    T     = (z2 - z1) + 0.05             # axial:        2.15 mm
+    clr   = 0.05
+
+    # Angle: 0° = first magnet at (X>0, Y=0); subsequent magnets CCW
     theta = data["pitch_angle"]
-    W     = data["magnet_width"]
+    angle = math.degrees(index * theta)
 
-    mid_r = (sir + sor) / 2.0
-    half_magnet_arc = math.asin(min(W / 2.0 / mid_r, 1.0))
-    sep_half_arc = theta / 2.0 - half_magnet_arc
-
-    if sep_half_arc <= 0:
-        print("  warning: no room for magnet separators at this pitch")
-        return None
-
-    start = math.pi - theta / 2.0
-    solids = []
-    for i in range(data["magnets_per_half"] - 1):
-        gap_centre = start - i * theta - theta / 2.0
-        a_start = gap_centre - sep_half_arc
-        arc_deg = math.degrees(2.0 * sep_half_arc)
-        xz = [(sir, z1), (sor, z1), (sor, z2), (sir, z2)]
-        pts_3d = [(x, 0.0, z) for x, z in xz]
-        edges = [Edge.make_line(pts_3d[j], pts_3d[(j + 1) % 4]) for j in range(4)]
-        face = Face(Wire(edges))
-        sep = Solid.revolve(face, arc_deg, Axis.Z)
-        sep = sep.rotate(Axis.Z, math.degrees(a_start))
-        solids.append(sep)
-
-    return Compound(solids)
-
-
-def make_magnet_end_walls(data: dict) -> Shape:
-    """Radial stop walls at the inner and outer ends of the magnet pocket.
-
-    Inner stop: sir → (mir - clr), height z1 → z2
-    Outer stop: (mor + clr) → sor,  height z1 → z2
-    0.2 mm clearance each side so magnets seat without press-fitting.
-    """
-    sir = data["steel_inner_radius"]
-    sor = data["steel_outer_radius"]
-    mir = data["magnet_inner_radius"]
-    mor = data["magnet_outer_radius"]
-    clr = data["magnet_end_clearance"]
-    z1  = data["z1"]
-    z2  = data["z2"]
-    h   = z2 - z1
     with BuildPart() as p:
-        with BuildSketch(Plane(origin=(0, 0, z1))):
-            _semi_annulus_sketch(sir, mir - clr)    # inner stop
-            _semi_annulus_sketch(mor + clr, sor)    # outer stop
-        extrude(amount=h)
-    return p.part
+        Box(L, W, T, align=(Align.MIN, Align.CENTER, Align.MIN))
+    void = p.part.moved(Location((mir - clr, 0.0, z1)))
+    return void.rotate(Axis.Z, angle)
 
 
-def make_magnet_pocket_dogbones(data: dict) -> Compound:
-    """Axial cylinder cuts at every magnet-slot corner for strain relief.
+def make_magnet_dogbones(data: dict) -> Compound:
+    """0.25 mm radius axial cylinders at all 4 base corners of every pocket.
 
-    At each angular end of each magnet slot, a 0.25 mm cylinder at both the
-    inner and outer radial pocket walls lets the magnet seat fully into the
-    base corner without the snap tooth blocking insertion.
-    Cylinders are oriented along Z, spanning z1→z2 (pocket depth only).
+    One cylinder per corner:  inner/outer radial face × both angular ends.
+    Each cylinder spans z=0 → z=z2, clearing the floor corner so the magnet
+    can seat without a radius-constrained interference fit.
     """
-    mir    = data["magnet_inner_radius"]
-    mor    = data["magnet_outer_radius"]
-    clr    = data["magnet_end_clearance"]
-    z1     = data["z1"]
+    mir    = data["magnet_inner_radius"] - 0.05   # expanded pocket inner face
+    mor    = data["magnet_outer_radius"] + 0.05   # expanded pocket outer face
+    W      = data["magnet_width"] + 0.10          # expanded pocket width
     z2     = data["z2"]
+    r_dog  = data["dogbone_radius"]               # 0.25 mm
     theta  = data["pitch_angle"]
-    W      = data["magnet_width"]
-    r_dog  = data["dogbone_radius"]
-    sir    = data["steel_inner_radius"]
-    sor    = data["steel_outer_radius"]
 
-    r_inner = mir - clr     # inner pocket wall radius
-    r_outer = mor + clr     # outer pocket wall radius
-    h       = z2 - z1
-
-    # Build a template cylinder centered at origin, height z1→z2
     with BuildPart() as tmpl:
-        with BuildSketch(Plane(origin=(0, 0, z1))):
+        with BuildSketch(Plane.XY):
             Circle(r_dog)
-        extrude(amount=h)
+        extrude(amount=z2 + r_dog)
     cyl = tmpl.part
-
-    mid_r           = (sir + sor) / 2.0
-    half_magnet_arc = math.asin(min(W / 2.0 / mid_r, 1.0))
-    start           = math.pi - theta / 2.0
 
     solids = []
     for i in range(data["magnets_per_half"]):
-        mag_center = start - i * theta
-        for side in (+1, -1):                    # both angular ends of magnet
-            t = mag_center + side * half_magnet_arc
-            for r in (r_inner, r_outer):         # inner and outer pocket wall
-                cx = r * math.cos(t)
-                cy = r * math.sin(t)
-                solids.append(cyl.moved(Location((cx, cy, 0))))
+        angle = i * theta           # radians
+        for r in (mir, mor):        # inner and outer radial pocket face
+            for w in (-W / 2, +W / 2):   # both tangential ends
+                # Corner position in lab frame
+                x = r * math.cos(angle) - w * math.sin(angle)
+                y = r * math.sin(angle) + w * math.cos(angle)
+                solids.append(cyl.moved(Location((x, y, 0.0))))
 
     return Compound(solids)
 
 
 def make_cover(data: dict) -> Shape:
-    """Fuse all printed components into one cover body, subtract dogbones."""
-    print("    base …", end=" ", flush=True)
-    base = make_base(data)
-    print("inner wall …", end=" ", flush=True)
-    inner = make_inner_wall(data)
-    print("outer wall …", end=" ", flush=True)
-    outer = make_outer_wall(data)
-    print("end walls …", end=" ", flush=True)
-    end_walls = make_magnet_end_walls(data)
-    print("separators …", end=" ", flush=True)
-    seps = make_magnet_separators(data)
+    """Subtractive build: blank annulus → cut steel cavity → cut magnet pockets → cut dogbones."""
+    print("  blank …", end=" ", flush=True)
+    cover = make_cover_blank(data)
+
+    print("steel cavity …", end=" ", flush=True)
+    cover = cover.cut(make_steel_cavity_void(data))
+
+    n = data["magnets_per_half"]
+    print(f"magnet pockets (×{n}) …", end=" ", flush=True)
+    for i in range(n):
+        cover = cover.cut(make_magnet_pocket_void(data, i))
+
     print("dogbones …", end=" ", flush=True)
-    dogbones = make_magnet_pocket_dogbones(data)
-    print("fusing …", end=" ", flush=True)
-    cover = base.fuse(inner).fuse(outer).fuse(end_walls)
-    if seps is not None:
-        cover = cover.fuse(seps)
-    cover = cover.cut(dogbones)
+    cover = cover.cut(make_magnet_dogbones(data))
+
     print("done.")
     return cover
 
