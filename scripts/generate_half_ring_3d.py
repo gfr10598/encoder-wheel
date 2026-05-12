@@ -295,14 +295,15 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
             extrude(amount=W)
 
         # ── Entry chamfer at pocket opening ───────────────────────
-        # Frustum at z=T → z=T+ch_h: pocket mouth flares out by ch_r on
-        # each side so the magnet can find the slot from the steel cavity.
+        # Frustum base (at z=T-ch_h) fits exactly inside the box (L×W).
+        # Taper expands outward going UP to z=T, cutting into the walls
+        # to create a lead-in for magnet insertion.
         ch_h = 0.5   # chamfer height (mm)
-        ch_r = 0.2   # chamfer width  (mm)
-        _taper = math.degrees(math.atan2(ch_r, ch_h))   # ~21.8°
-        with BuildSketch(Plane(origin=(L / 2, 0, T))):
+        ch_w = 0.2   # chamfer width  (mm) each side
+        _taper = math.degrees(math.atan2(ch_w, ch_h))   # ~21.8°
+        with BuildSketch(Plane(origin=(L / 2, 0, T - ch_h))):
             Rectangle(L, W)
-        extrude(amount=ch_h, taper=_taper)
+        extrude(amount=ch_h, taper=-_taper)  # negative: expands outward going up
 
     void = p.part.moved(Location((mir_f, 0.0, z1)))
 
