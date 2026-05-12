@@ -183,7 +183,7 @@ def make_steel_half_ring(data: dict) -> Shape:
         with BuildSketch(Plane(origin=(0, 0, z2))):
             _semi_annulus_sketch(sir, sor)
         extrude(amount=st)
-        fillet(p.edges(), radius=0.5)
+        chamfer(p.edges(), length=0.25)
     return p.part
 
 

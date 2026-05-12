@@ -362,7 +362,7 @@ def generate_cross_section_svg(data: dict) -> str:
     # Cavity walls are 0.05 mm outside these faces so a thin gap is visible
     # between the steel rect and the PETG cavity walls in the diagram.
     # A 0.02 mm gap also appears below the steel (floor at z2-0.02 in model).
-    parts.append(rect(sir, z2, sor - sir, z3 - z2, "#777", opacity=0.50, rx=0.3))
+    parts.append(rect(sir, z2, sor - sir, z3 - z2, "#777", opacity=0.50, rx=0.15))
 
     # Small zone labels — only where there is enough room
     cx_cav = (sir + sor) / 2
