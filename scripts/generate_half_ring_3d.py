@@ -211,16 +211,16 @@ def make_steel_cavity_void(data: dict) -> Shape:
 
     XZ polygon (cavity cross-section, CCW from +Y side):
 
-        inner bottom (sir+clr, z2-clr)
-        outer bottom (sor-clr, z2-clr)
-        outer seat   (sor-clr, z3)
+        inner bottom (sir-clr, z2-0.02)   ← 0.05 mm radial clr each side, 0.02 mm axial floor clr
+        outer bottom (sor+clr, z2-0.02)
+        outer seat   (sor+clr, z3)
         outer snap   (sor-snap, z3)→(sor-snap, z4)   ← snap bead
         outer mouth  (sor+taper, z5)                  ← chamfer opens out
         inner mouth  (sir-taper, z5)                  ← chamfer opens in
         inner snap   (sir+snap, z4)→(sir+snap, z3)    ← snap bead
-        inner seat   (sir+clr, z3)
+        inner seat   (sir-clr, z3)
 
-    clr = 0.05 mm clearance on all faces.
+    Radial clr = 0.05 mm each side (cavity wider than steel); axial floor clr = 0.02 mm.
     """
     sir, sor  = data["steel_inner_radius"], data["steel_outer_radius"]
     z2, z3, z4, z5 = data["z2"], data["z3"], data["z4"], data["z5"]
@@ -228,17 +228,18 @@ def make_steel_cavity_void(data: dict) -> Shape:
     taper = data["chamfer_taper"]   # 1.2 mm
     clr   = 0.05                    # steel clearance
 
+    axial_clr = 0.02          # floor clearance (steel not press-fit axially)
     xz = [
-        (sir + clr,    z2),
-        (sor - clr,    z2),
-        (sor - clr,    z3),
+        (sir - clr,    z2 - axial_clr),   # inner cavity wall: 0.05 mm outside steel ID
+        (sor + clr,    z2 - axial_clr),   # outer cavity wall: 0.05 mm outside steel OD
+        (sor + clr,    z3),
         (sor - snap,   z3),
         (sor - snap,   z4),
         (sor + taper,  z5),
         (sir - taper,  z5),
         (sir + snap,   z4),
         (sir + snap,   z3),
-        (sir + clr,    z3),
+        (sir - clr,    z3),              # inner seat wall: 0.05 mm outside steel ID
     ]
     return _revolve_xz_profile(xz)
 
@@ -293,6 +294,16 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
                 Circle(r)
             extrude(amount=W)
 
+        # ── Entry chamfer at pocket opening ───────────────────────
+        # Frustum at z=T → z=T+ch_h: pocket mouth flares out by ch_r on
+        # each side so the magnet can find the slot from the steel cavity.
+        ch_h = 0.5   # chamfer height (mm)
+        ch_r = 0.2   # chamfer width  (mm)
+        _taper = math.degrees(math.atan2(ch_r, ch_h))   # ~21.8°
+        with BuildSketch(Plane(origin=(L / 2, 0, T))):
+            Rectangle(L, W)
+        extrude(amount=ch_h, taper=_taper)
+
     void = p.part.moved(Location((mir_f, 0.0, z1)))
 
     # ── Rotate to pocket's angular position ──────────────────────────
@@ -303,9 +314,9 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
 def make_steel_corner_dogbones(data: dict) -> Compound:
     """Half-torus cuts at the two floor corners of the steel seat.
 
-    The floor is at z = z2 (zero axial clearance; steel seats flush).
-    Inner corner: torus at r = sir + 0.05, z = z2
-    Outer corner: torus at r = sor - 0.05, z = z2
+    The floor is at z = z2 - 0.02 (0.02 mm axial clearance below steel).
+    Inner corner: torus at r = sir - 0.05, z = z2-0.02
+    Outer corner: torus at r = sor + 0.05, z = z2-0.02
     Relieves the radius the printer leaves at each bottom corner so the
     steel ring seats fully against the cavity floor.
     """
@@ -314,10 +325,10 @@ def make_steel_corner_dogbones(data: dict) -> Compound:
     z2  = data["z2"]
     r   = data["dogbone_radius"]
     clr = 0.05
-    z_floor = z2      # steel seats flush at z2 (zero axial clearance)
+    z_floor = z2 - 0.02   # cavity floor (0.02 mm below steel bottom face)
     return Compound([
-        _torus_cut(sir + clr, z_floor, r),
-        _torus_cut(sor - clr, z_floor, r),
+        _torus_cut(sir - clr, z_floor, r),   # inner corner: cavity inside steel ID
+        _torus_cut(sor + clr, z_floor, r),   # outer corner: cavity outside steel OD
     ])
 
 

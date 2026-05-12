@@ -326,9 +326,10 @@ def generate_cross_section_svg(data: dict) -> str:
                 f'font-family="sans-serif" font-size="{sz}" '
                 f'font-weight="{fw}" fill="{col}"{rot}>{msg}</text>')
 
-    def rect(x, y, w, h, fill, opacity=0.55, stroke="none") -> str:
+    def rect(x, y, w, h, fill, opacity=0.55, stroke="none", rx=0.0) -> str:
+        rx_attr = f' rx="{rx:.3f}" ry="{rx:.3f}"' if rx > 0 else ""
         return (f'<rect x="{fx(x)}" y="{fy(y)}" width="{w:.3f}" height="{h:.3f}" '
-                f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}"/>')
+                f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}"{rx_attr}/>')
 
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -358,8 +359,12 @@ def generate_cross_section_svg(data: dict) -> str:
     # Magnet sits at z2-mt → z2 (hangs from steel bottom face)
     z_mag_bot = z2 - mt
     parts.append(rect(mir, z_mag_bot, mor - mir, z2 - z_mag_bot, "#4a90e2", opacity=0.20))
-    parts.append(rect(mir, z_mag_bot, mor - mir, mt,              "#2e6bb0", opacity=0.50))
-    parts.append(rect(sir + 0.05, z2, sor - sir - 0.10, z3 - z2,  "#777",    opacity=0.50))
+    parts.append(rect(mir, z_mag_bot, mor - mir, mt,              "#2e6bb0", opacity=0.50, rx=0.3))
+    # Steel reference rect at nominal steel dimensions (sir→sor, z2→z3).
+    # Cavity walls are 0.05 mm outside these faces so a thin gap is visible
+    # between the steel rect and the PETG cavity walls in the diagram.
+    # A 0.02 mm gap also appears below the steel (floor at z2-0.02 in model).
+    parts.append(rect(sir, z2, sor - sir, z3 - z2, "#777", opacity=0.50, rx=0.3))
 
     # Small zone labels — only where there is enough room
     cx_cav = (sir + sor) / 2
