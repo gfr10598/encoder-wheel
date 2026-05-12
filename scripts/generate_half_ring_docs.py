@@ -259,8 +259,8 @@ def generate_cross_section_svg(data: dict) -> str:
     exporter.add_layer(
         "cover",
         fill_color=Color(0.84, 0.84, 0.84),
-        line_color=Color(0.35, 0.35, 0.35),
-        line_weight=0.05,
+        line_color=Color(0, 0, 0),
+        line_weight=0.02,
     )
     exporter.add_shape(rotated, layer="cover")
     exporter.write(tmppath)
@@ -341,6 +341,7 @@ def generate_cross_section_svg(data: dict) -> str:
         '  <marker id="a2" markerWidth="4" markerHeight="4" refX="0.5" refY="2" orient="auto">',
         '    <path d="M4,0 L0,2 L4,4 Z" fill="#444"/></marker>',
         '</defs>',
+        f'<rect x="{nx:.3f}" y="{ny:.3f}" width="{nw:.3f}" height="{nh:.3f}" fill="#e8e8e8"/>',
     ]
 
     # ── Title ─────────────────────────────────────────────────────────
@@ -358,7 +359,7 @@ def generate_cross_section_svg(data: dict) -> str:
     z_mag_bot = z2 - mt
     parts.append(rect(mir, z_mag_bot, mor - mir, z2 - z_mag_bot, "#4a90e2", opacity=0.20))
     parts.append(rect(mir, z_mag_bot, mor - mir, mt,              "#2e6bb0", opacity=0.50))
-    parts.append(rect(sir, z2, sor - sir, z3 - z2,  "#777",    opacity=0.50))
+    parts.append(rect(sir + 0.05, z2, sor - sir - 0.10, z3 - z2,  "#777",    opacity=0.50))
 
     # Small zone labels — only where there is enough room
     cx_cav = (sir + sor) / 2

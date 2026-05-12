@@ -229,8 +229,8 @@ def make_steel_cavity_void(data: dict) -> Shape:
     clr   = 0.05                    # steel clearance
 
     xz = [
-        (sir + clr,    z2 - clr),
-        (sor - clr,    z2 - clr),
+        (sir + clr,    z2),
+        (sor - clr,    z2),
         (sor - clr,    z3),
         (sor - snap,   z3),
         (sor - snap,   z4),
@@ -303,9 +303,9 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
 def make_steel_corner_dogbones(data: dict) -> Compound:
     """Half-torus cuts at the two floor corners of the steel seat.
 
-    The floor is at z = z2 - 0.05 mm (clearance gap below steel ring).
-    Inner corner: torus at r = sir + 0.05, z = z2-0.05
-    Outer corner: torus at r = sor - 0.05, z = z2-0.05
+    The floor is at z = z2 (zero axial clearance; steel seats flush).
+    Inner corner: torus at r = sir + 0.05, z = z2
+    Outer corner: torus at r = sor - 0.05, z = z2
     Relieves the radius the printer leaves at each bottom corner so the
     steel ring seats fully against the cavity floor.
     """
@@ -314,7 +314,7 @@ def make_steel_corner_dogbones(data: dict) -> Compound:
     z2  = data["z2"]
     r   = data["dogbone_radius"]
     clr = 0.05
-    z_floor = z2 - clr      # actual cavity floor level
+    z_floor = z2      # steel seats flush at z2 (zero axial clearance)
     return Compound([
         _torus_cut(sir + clr, z_floor, r),
         _torus_cut(sor - clr, z_floor, r),
