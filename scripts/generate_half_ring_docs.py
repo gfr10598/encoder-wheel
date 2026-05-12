@@ -63,6 +63,9 @@ def design_data() -> dict:
     magnet_outer_radius = steel_outer_radius - outer_margin    # 100.6 mm
     magnet_inner_radius = magnet_outer_radius - magnet_length  # 80.6 mm
 
+    # Radial clearance at each end of magnet pocket (magnet slides in freely)
+    magnet_end_clearance = 0.2
+
     # Magnet-end wall thicknesses (radial stops)
     magnet_inner_wall   = magnet_inner_radius - steel_inner_radius  # 4.4 mm
     magnet_outer_wall   = steel_outer_radius - magnet_outer_radius  # 1.0 mm
@@ -130,6 +133,7 @@ def design_data() -> dict:
         "used_arc_outer":  used_arc_outer,
         "magnet_radial_spare": steel_outer_radius - magnet_outer_radius,
         "outer_margin":      outer_margin,
+        "magnet_end_clearance": magnet_end_clearance,
     }
 
 

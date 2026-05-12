@@ -199,9 +199,9 @@ def make_inner_wall(data: dict) -> Shape:
         (cir,          z1),
         (sir,          z1),
         (sir,          z3),
-        (sir - snap,   z3),
-        (sir - snap,   z4),
-        (sir - taper,  z5),
+        (sir + snap,   z3),   # snap protrudes INTO cavity (grips steel inner face)
+        (sir + snap,   z4),   # snap lip
+        (sir - taper,  z5),   # chamfer widens to mouth
         (cir,          z5),
     ]
     return _revolve_xz_profile(xz)
@@ -280,21 +280,22 @@ def make_magnet_separators(data: dict) -> Compound | None:
 def make_magnet_end_walls(data: dict) -> Shape:
     """Radial stop walls at the inner and outer ends of the magnet pocket.
 
-    Inner stop: sir → mir, height z1 → z2  (4.4 mm wide with new magnet position)
-    Outer stop: mor → sor, height z1 → z2  (1.0 mm wide)
-    These prevent magnets from sliding radially.
+    Inner stop: sir → (mir - clr), height z1 → z2
+    Outer stop: (mor + clr) → sor,  height z1 → z2
+    0.2 mm clearance each side so magnets seat without press-fitting.
     """
     sir = data["steel_inner_radius"]
     sor = data["steel_outer_radius"]
     mir = data["magnet_inner_radius"]
     mor = data["magnet_outer_radius"]
+    clr = data["magnet_end_clearance"]
     z1  = data["z1"]
     z2  = data["z2"]
     h   = z2 - z1
     with BuildPart() as p:
         with BuildSketch(Plane(origin=(0, 0, z1))):
-            _semi_annulus_sketch(sir, mir)   # inner stop
-            _semi_annulus_sketch(mor, sor)   # outer stop
+            _semi_annulus_sketch(sir, mir - clr)    # inner stop
+            _semi_annulus_sketch(mor + clr, sor)    # outer stop
         extrude(amount=h)
     return p.part
 
