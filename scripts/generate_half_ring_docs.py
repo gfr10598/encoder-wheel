@@ -64,7 +64,10 @@ def design_data() -> dict:
     magnet_inner_radius = magnet_outer_radius - magnet_length  # 80.6 mm
 
     # Radial clearance at each end of magnet pocket (magnet slides in freely)
-    magnet_end_clearance = 0.2
+    magnet_end_clearance = 0.1  # 0.1 mm gap each side; inner PETG = 4.3 mm
+
+    # Dogbone radius for strain-relief corners
+    dogbone_radius = 0.25
 
     # Magnet-end wall thicknesses (radial stops)
     magnet_inner_wall   = magnet_inner_radius - steel_inner_radius  # 4.4 mm
@@ -134,6 +137,7 @@ def design_data() -> dict:
         "magnet_radial_spare": steel_outer_radius - magnet_outer_radius,
         "outer_margin":      outer_margin,
         "magnet_end_clearance": magnet_end_clearance,
+        "dogbone_radius":     dogbone_radius,
     }
 
 
