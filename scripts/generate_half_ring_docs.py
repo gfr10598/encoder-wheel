@@ -356,10 +356,11 @@ def generate_cross_section_svg(data: dict) -> str:
                       size=0.65, color="#666"))
 
     # ── Zone fill bands ────────────────────────────────────────────────
-    # Magnet sits at z2-mt → z2 (hangs from steel bottom face)
+    # Magnet clearance zone z1→z2 (light blue background, full 2.1 mm height)
+    # Actual magnet rect z2-mt→z2 (2.0 mm, dark blue, rounded corners)
     z_mag_bot = z2 - mt
-    parts.append(rect(mir, z_mag_bot, mor - mir, z2 - z_mag_bot, "#4a90e2", opacity=0.20))
-    parts.append(rect(mir, z_mag_bot, mor - mir, mt,              "#2e6bb0", opacity=0.50, rx=0.3))
+    parts.append(rect(mir, z1, mor - mir, z2 - z1, "#4a90e2", opacity=0.20))
+    parts.append(rect(mir, z_mag_bot, mor - mir, mt, "#2e6bb0", opacity=0.50, rx=0.3))
     # Steel reference rect at nominal steel dimensions (sir→sor, z2→z3).
     # Cavity walls are 0.05 mm outside these faces so a thin gap is visible
     # between the steel rect and the PETG cavity walls in the diagram.
