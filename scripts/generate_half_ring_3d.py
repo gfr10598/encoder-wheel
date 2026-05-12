@@ -76,6 +76,7 @@ from build123d import (
     Shape,
     Solid,
     Wire,
+    chamfer,
     export_step,
     export_stl,
     extrude,
@@ -132,20 +133,25 @@ def _torus_cut(r_center: float, z_center: float, r_tube: float, n_pts: int = 24)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def make_single_magnet(data: dict) -> Shape:
-    """One 20x5x2 mm magnet at angle=0, in the cavity at z=z1.
+    """One 20×5×2 mm magnet at angle=0, resting against the steel bottom face at z2.
 
-    Conservative 0.2 mm fillets on all edges — must be smaller than the
-    smallest expected magnet corner radius so the cavity check is valid.
+    Corner rounds approximate real sintered magnet geometry:
+      0.7 mm on the short (2 mm, Z-direction) edges
+      0.3 mm on the longer (5 mm and 20 mm) edges
     """
     L   = data["magnet_length"]       # 20 mm radial
     W   = data["magnet_width"]        # 5 mm tangential
     T   = data["magnet_thickness"]    # 2 mm axial
     mir = data["magnet_inner_radius"]
-    z1  = data["z1"]
 
     with BuildPart() as p:
         Box(L, W, T, align=(Align.MIN, Align.CENTER, Align.MIN))
-        fillet(p.edges(), radius=0.2)
+        # Short (T=2 mm, Z-direction) edges — larger corner round
+        short_edges = [e for e in p.edges() if e.length < T + 0.5]
+        fillet(short_edges, radius=min(0.7, T / 2 - 0.01))
+        # Longer (W=5 mm and L=20 mm) edges — smaller corner round
+        long_edges = [e for e in p.edges() if e.length > T + 0.5]
+        fillet(long_edges, radius=0.3)
     z_bottom = data["z2"] - T   # magnet hangs from steel bottom face at z2
     return p.part.moved(Location((mir, 0, z_bottom)))
 
@@ -164,7 +170,11 @@ def make_magnet_array(data: dict) -> Compound:
 
 
 def make_steel_half_ring(data: dict) -> Shape:
-    """1/8 in steel ring, Y>=0 half, occupying z2→z3."""
+    """1/8 in steel ring, Y>=0 half, occupying z2→z3.
+
+    0.5 mm corner rounds on all edges to represent the ground/deburred
+    edges of the real steel ring.
+    """
     sir = data["steel_inner_radius"]
     sor = data["steel_outer_radius"]
     z2  = data["z2"]
@@ -173,6 +183,7 @@ def make_steel_half_ring(data: dict) -> Shape:
         with BuildSketch(Plane(origin=(0, 0, z2))):
             _semi_annulus_sketch(sir, sor)
         extrude(amount=st)
+        fillet(p.edges(), radius=0.5)
     return p.part
 
 
@@ -254,19 +265,23 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
     # ── Core rectangular void ────────────────────────────────────────
     with BuildPart() as p:
         Box(L, W, T, align=(Align.MIN, Align.CENTER, Align.MIN))
-    void = p.part.moved(Location((mir_f, 0.0, z1)))
+    box_void = p.part.moved(Location((mir_f, 0.0, z1)))
 
     # ── Dogbone cylinders at the 4 vertical corner edges ────────────
     # Placed at z1, height T: bottom exactly at z1, never below the base.
+    # Built as a Compound (avoids unreliable boolean-on-void fuse calls).
     with BuildPart() as c:
         with BuildSketch(Plane.XY):
             Circle(r_dog)
         extrude(amount=T)
     cyl = c.part
 
-    for cx in (mir_f, mor_f):
-        for cy in (-W / 2, +W / 2):
-            void = void.fuse(cyl.moved(Location((cx, cy, z1))))
+    cyl_shapes = [
+        cyl.moved(Location((cx, cy, z1)))
+        for cx in (mir_f, mor_f)
+        for cy in (-W / 2, +W / 2)
+    ]
+    void = Compound([box_void] + cyl_shapes)
 
     # ── Rotate to pocket's angular position ──────────────────────────
     angle = math.degrees(index * data["pitch_angle"])
@@ -311,23 +326,26 @@ def make_snap_root_dogbones(data: dict) -> Compound:
     sir  = data["steel_inner_radius"]
     sor  = data["steel_outer_radius"]
     z3   = data["z3"]
-    snap   = data["snap_overhang"]    # 0.2 mm
+    snap   = data["snap_overhang"]    # 0.2 mm (unused for torus position)
     r      = data["dogbone_radius"]   # 0.25 mm
-    z_hinge = z3 - r   # torus centred here → top of circle tangent to z3,
+    z_hinge = z3 - r   # torus centred here → top of circle tangent to z3
                         # so the entire torus body sits below the snap arm
+    # Tori aligned on the steel face (sor / sir), not on the snap edge:
+    # the hinge groove must be at the point where the PETG wall transitions
+    # from the flat steel seat to the snap arm — that is the steel face.
     return Compound([
-        _torus_cut(sor - snap, z_hinge, r),   # outer snap root
-        _torus_cut(sir + snap, z_hinge, r),   # inner snap root
+        _torus_cut(sor, z_hinge, r),   # outer snap root — at steel OD
+        _torus_cut(sir, z_hinge, r),   # inner snap root — at steel ID
     ])
 
 
 def make_cover(data: dict) -> Shape:
-    """Subtractive build: blank → steel cavity → magnet pockets → dogbones.
+    """Subtractive build: blank → steel cavity → magnet pockets → dogbones → bevels.
 
-    Each magnet pocket void already includes its own 4 dogbone cylinders at
-    the vertical corner edges (fused before cutting), so the pocket and its
-    corner relief are cut in a single CSG operation.  Steel-corner and
-    snap-root tori are cut separately (they are full-ring revolutions).
+    Each magnet pocket void is a Compound of the rectangular box and 4 dogbone
+    cylinders at its vertical corner edges.  Steel-corner and snap-root tori
+    are cut separately (they are full-ring revolutions).  Finally 0.2 mm
+    bevels are applied to all convex edges of the PETG exterior.
     """
     print("  blank …", end=" ", flush=True)
     cover = make_cover_blank(data)
@@ -345,6 +363,22 @@ def make_cover(data: dict) -> Shape:
 
     print("snap root dogbones …", end=" ", flush=True)
     cover = cover.cut(make_snap_root_dogbones(data))
+
+    print("PETG bevels …", end=" ", flush=True)
+    z5 = data["z5"]
+    # Chamfer only the circular arcs on the top and bottom exterior faces.
+    # Straight edges at Y≈0 (the half-ring cut plane) have only one adjacent
+    # face and will cause OCCT to abort, so we skip them.
+    bevel_edges = [
+        e for e in cover.edges()
+        if (abs(e.center().Z) < 0.15 or abs(e.center().Z - z5) < 0.15)
+        and e.center().Y > 1.0    # exclude Y=0 boundary edges
+    ]
+    if bevel_edges:
+        try:
+            cover = chamfer(bevel_edges, length=0.2)
+        except Exception as exc:
+            print(f"(skipped — {exc})", end=" ", flush=True)
 
     print("done.")
     return cover
