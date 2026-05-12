@@ -175,23 +175,19 @@ def make_base(data: dict) -> Shape:
 
 
 def make_inner_wall(data: dict) -> Shape:
-    """Inner capture wall with chamfer and snap tooth, revolved 180°.
+    """Inner capture wall: snap at z3 (steel top edge), chamfer from z4 to z5.
 
     XZ profile (counterclockwise, viewed from +Y):
 
-        cir,z1 ──── sir,z1        (bottom — cavity floor level)
+        cir,z1 ──── sir,z1        (base level)
                       |
-                    sir,z3        (straight up to steel seat)
+                    sir,z3        (straight to steel seat)
+                    |
+               sir-snap,z3       (SNAP: 0.2 mm step inward at steel top)
+               sir-snap,z4       (snap lip 0.2 mm tall)
                      ╱
-               sir-taper,z4       (chamfer flares cavity INWARD → wider opening)
-                       ╲
-               sir-snap,z5        (snap tooth grips inside steel ID)
+               sir-taper,z5      (chamfer widens to mouth)
         cir,z5 ──────────
-
-    snap  = 0.2 mm (snap_overhang)
-    taper = 1.2 mm (chamfer_taper)
-    At z4: cavity face is 1.2 mm inward of steel ID → wider opening guides ring in.
-    At z5: snap is 0.2 mm inward of steel ID → grips ring after it passes z4 peak.
     """
     cir   = data["cover_inner_radius"]
     sir   = data["steel_inner_radius"]
@@ -203,27 +199,26 @@ def make_inner_wall(data: dict) -> Shape:
         (cir,          z1),
         (sir,          z1),
         (sir,          z3),
-        (sir - taper,  z4),
-        (sir - snap,   z5),
+        (sir - snap,   z3),
+        (sir - snap,   z4),
+        (sir - taper,  z5),
         (cir,          z5),
     ]
     return _revolve_xz_profile(xz)
 
 
 def make_outer_wall(data: dict) -> Shape:
-    """Outer capture wall with chamfer and snap tooth, revolved 180°.
-
-    Mirror of inner wall: taper opens inward, snap grips outside steel OD.
+    """Outer capture wall: snap at z3 (steel top edge), chamfer from z4 to z5.
 
     XZ profile (counterclockwise, viewed from +Y):
 
         sor,z1 ──── cor,z1
           |
-        sor,z3              (straight up to steel seat)
+        sor,z3              (straight to steel seat)
+        sor-snap,z3         (SNAP: 0.2 mm step inward at steel top)
+        sor-snap,z4         (snap lip)
              ╲
-        sor+taper,z4        (chamfer flares cavity OUTWARD → wider opening)
-         ╱
-    sor-snap,z5             (snap grips outside steel OD)
+        sor+taper,z5        (chamfer widens to mouth)
         cor,z5 ──────────
     """
     cor   = data["cover_outer_radius"]
@@ -236,8 +231,9 @@ def make_outer_wall(data: dict) -> Shape:
         (sor,          z1),
         (cor,          z1),
         (cor,          z5),
-        (sor - snap,   z5),
-        (sor + taper,  z4),
+        (sor + taper,  z5),
+        (sor - snap,   z4),
+        (sor - snap,   z3),
         (sor,          z3),
     ]
     return _revolve_xz_profile(xz)
@@ -281,6 +277,28 @@ def make_magnet_separators(data: dict) -> Compound | None:
     return Compound(solids)
 
 
+def make_magnet_end_walls(data: dict) -> Shape:
+    """Radial stop walls at the inner and outer ends of the magnet pocket.
+
+    Inner stop: sir → mir, height z1 → z2  (4.4 mm wide with new magnet position)
+    Outer stop: mor → sor, height z1 → z2  (1.0 mm wide)
+    These prevent magnets from sliding radially.
+    """
+    sir = data["steel_inner_radius"]
+    sor = data["steel_outer_radius"]
+    mir = data["magnet_inner_radius"]
+    mor = data["magnet_outer_radius"]
+    z1  = data["z1"]
+    z2  = data["z2"]
+    h   = z2 - z1
+    with BuildPart() as p:
+        with BuildSketch(Plane(origin=(0, 0, z1))):
+            _semi_annulus_sketch(sir, mir)   # inner stop
+            _semi_annulus_sketch(mor, sor)   # outer stop
+        extrude(amount=h)
+    return p.part
+
+
 def make_cover(data: dict) -> Shape:
     """Fuse all printed components into one cover body."""
     print("    base …", end=" ", flush=True)
@@ -289,10 +307,12 @@ def make_cover(data: dict) -> Shape:
     inner = make_inner_wall(data)
     print("outer wall …", end=" ", flush=True)
     outer = make_outer_wall(data)
+    print("end walls …", end=" ", flush=True)
+    end_walls = make_magnet_end_walls(data)
     print("separators …", end=" ", flush=True)
     seps = make_magnet_separators(data)
     print("fusing …", end=" ", flush=True)
-    cover = base.fuse(inner).fuse(outer)
+    cover = base.fuse(inner).fuse(outer).fuse(end_walls)
     if seps is not None:
         cover = cover.fuse(seps)
     print("done.")

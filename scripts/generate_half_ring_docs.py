@@ -20,14 +20,14 @@ def design_data() -> dict:
 
     Axial stack (Z=0 = print-bed / bottom face, Z increases upward):
       z0 = 0              bottom of base (print-bed face)
-      z1 = base           top of base / start of capture cavity
-      z2 = z1 + magnet_clearance   top of magnet zone
-      z3 = z2 + steel_t   top of steel zone (steel ring sits here)
-      z4 = z3 + chamfer   top of chamfer lead-in  (open entry of cavity)
-      z5 = z4 + snap      snap tooth tip (outermost wall height)
+      z1 = base           top of base / cavity floor
+      z2 = z1 + magnet    top of magnet clearance zone
+      z3 = z2 + steel     top of steel zone = snap level (snap grips here)
+      z4 = z3 + snap_h    top of snap lip
+      z5 = z4 + chamfer   mouth of cavity (widest, open end)
 
-    The chamfer makes assembly easy: walls taper over z3→z4 then the 0.2 mm
-    snap tooth protrudes inward at z4→z5 to retain the steel ring.
+    Assembly: steel ring enters from z5 (wide chamfer guides it in), clicks
+    past the snap lip at z4→z3, seats with bottom face at z2.
     """
     steel_inner_radius = 6.0 * INCH / 2.0   # 76.20 mm
     steel_outer_radius = 8.0 * INCH / 2.0   # 101.60 mm
@@ -41,35 +41,35 @@ def design_data() -> dict:
     base_thickness    = 1.0          # flat skin, print-bed face
     magnet_clearance  = 2.1          # magnet 2 mm + 0.1 mm clearance
     steel_thickness   = INCH / 8.0   # 3.175 mm  (1/8 in steel ring)
-    chamfer_height    = 2.0          # lead-in taper above steel seat
-    snap_overhang     = 0.2          # inward tooth at the open end
+    snap_height       = 0.2          # axial height of snap lip
+    snap_overhang     = 0.2          # radial protrusion of snap tooth
+    chamfer_height    = 2.0          # lead-in chamfer above snap (z4 → z5)
 
     # ── Derived Z positions ──────────────────────────────────────────
     z1 = base_thickness
     z2 = z1 + magnet_clearance
-    z3 = z2 + steel_thickness
-    z4 = z3 + chamfer_height
-    z5 = z4 + snap_overhang
+    z3 = z2 + steel_thickness        # steel top / snap level
+    z4 = z3 + snap_height            # top of snap lip
+    z5 = z4 + chamfer_height         # mouth (open entry)
 
     # ── Radial layout ────────────────────────────────────────────────
     # Cover walls are 1/8 in on each side → 5.75 in ID / 8.25 in OD
-    # Total radial span = 1.5 in = 38.1 mm
     cover_wall          = INCH / 8.0   # 3.175 mm
     cover_inner_radius  = steel_inner_radius - cover_wall   # 73.025 mm
     cover_outer_radius  = steel_outer_radius + cover_wall   # 104.775 mm
 
-    # Magnet band is centred on the steel ring
-    steel_margin        = (steel_outer_radius - steel_inner_radius - magnet_length) / 2.0
-    magnet_inner_radius = steel_inner_radius + steel_margin
-    magnet_outer_radius = magnet_inner_radius + magnet_length
+    # Magnets shifted to outer edge: 1 mm margin from steel OD
+    outer_margin        = 1.0
+    magnet_outer_radius = steel_outer_radius - outer_margin    # 100.6 mm
+    magnet_inner_radius = magnet_outer_radius - magnet_length  # 80.6 mm
 
-    # Magnet-end walls (radial stops at each end of the 20 mm magnet)
-    magnet_wall         = 2.04
+    # Magnet-end wall thicknesses (radial stops)
+    magnet_inner_wall   = magnet_inner_radius - steel_inner_radius  # 4.4 mm
+    magnet_outer_wall   = steel_outer_radius - magnet_outer_radius  # 1.0 mm
+    magnet_wall         = magnet_inner_wall   # kept for legacy compat
 
-    # Chamfer taper: how far the cavity flares outward at z4 relative to z3.
-    # At z5 the snap tooth is snap_overhang inside the steel ring face,
-    # so chamfer_taper must be > snap_overhang for the ring to enter freely.
-    # 1.2 mm gives a comfortable 31° entry angle (2 mm axial, 1.2 mm radial).
+    # Chamfer taper: radial flare of the lead-in chamfer (z4→z5).
+    # Must exceed snap_overhang so the ring clears the snap on entry.
     chamfer_taper       = 1.2
 
     # Magnet pocket corner fillet in the cavity: must be larger than the magnet's
@@ -80,7 +80,7 @@ def design_data() -> dict:
     outer_tab_width     = 2.0
     outer_tab_overhang  = 1.0
     # Tab flex pocket: slot cut in outer wall to let tab spring outward
-    tab_pocket_depth    = chamfer_height + snap_overhang   # full extra-wall zone
+    tab_pocket_depth    = snap_height + chamfer_height   # full extra-wall zone
 
     pitch_angle    = math.tau / 90.0
     wedge_outer    = steel_outer_radius * pitch_angle - magnet_width
@@ -106,6 +106,7 @@ def design_data() -> dict:
         "base_thickness":   base_thickness,
         "magnet_clearance": magnet_clearance,
         "steel_thickness":  steel_thickness,
+        "snap_height":      snap_height,
         "chamfer_height":   chamfer_height,
         "snap_overhang":    snap_overhang,
         # Derived Z positions
@@ -113,6 +114,8 @@ def design_data() -> dict:
         # Wall geometry
         "cover_wall":        cover_wall,
         "magnet_wall":       magnet_wall,
+        "magnet_inner_wall": magnet_inner_wall,
+        "magnet_outer_wall": magnet_outer_wall,
         "chamfer_taper":     chamfer_taper,
         "magnet_pocket_fillet": magnet_pocket_fillet,
         "outer_tab_width":   outer_tab_width,
@@ -126,6 +129,7 @@ def design_data() -> dict:
         "half_arc_outer":  half_arc_outer,
         "used_arc_outer":  used_arc_outer,
         "magnet_radial_spare": steel_outer_radius - magnet_outer_radius,
+        "outer_margin":      outer_margin,
     }
 
 
@@ -243,7 +247,7 @@ def generate_cross_section_svg(data: dict) -> str:
         "cover",
         fill_color=Color(0.84, 0.84, 0.84),
         line_color=Color(0.35, 0.35, 0.35),
-        line_weight=0.12,
+        line_weight=0.05,
     )
     exporter.add_shape(rotated, layer="cover")
     exporter.write(tmppath)
@@ -288,8 +292,8 @@ def generate_cross_section_svg(data: dict) -> str:
     def fx(v: float) -> str: return f"{v:.3f}"
     def fy(v: float) -> str: return f"{v:.3f}"
 
-    sw = "0.15"   # standard annotation stroke-width
-    fs = 1.5      # standard annotation font-size (mm)
+    sw = "0.08"   # standard annotation stroke-width
+    fs = 0.75     # standard annotation font-size (mm)
     fc = "#444"   # standard annotation fill color
 
     def line(x1, y1, x2, y2, **attrs) -> str:
@@ -327,37 +331,30 @@ def generate_cross_section_svg(data: dict) -> str:
     ]
 
     # ── Title ─────────────────────────────────────────────────────────
-    parts.append(text((cir + cor) / 2, ny + 2.5,
+    parts.append(text((cir + cor) / 2, ny + 1.2,
                       f"10 in half-ring cover \u2014 radial cross-section  "
                       f"ID {cid:.3f} in / OD {cod:.3f} in",
-                      size=1.8, bold=True, color="#222"))
-    parts.append(text((cir + cor) / 2, ny + 5,
+                      size=0.9, bold=True, color="#222"))
+    parts.append(text((cir + cor) / 2, ny + 2.5,
                       "1:1 scale \u2022 ring enters from top (z5) \u2022 seats at z3 \u2022 "
                       "gray = printed cover, blue = magnet, dk-gray = steel ring",
-                      size=1.2, color="#666"))
+                      size=0.65, color="#666"))
 
     # ── Zone fill bands ────────────────────────────────────────────────
-    parts.append(rect(sir, z1, sor - sir, z2 - z1, "#4a90e2", opacity=0.20))
+    # Magnet clearance fill: only the magnet band (mir→mor), not the full cavity
+    parts.append(rect(mir, z1, mor - mir, z2 - z1, "#4a90e2", opacity=0.20))
     parts.append(rect(mir, z1, mor - mir, mt,        "#2e6bb0", opacity=0.50))
     parts.append(rect(sir, z2, sor - sir, z3 - z2,  "#777",    opacity=0.50))
 
     # Small zone labels — only where there is enough room
     cx_cav = (sir + sor) / 2
-    parts.append(text(cx_cav, z2 + (z3 - z2) / 2 + 0.5,
-                      "steel (ref)", size=1.3, color="white"))
-    parts.append(text((mir + mor) / 2, z1 + mt / 2 + 0.5,
-                      "magnet (ref)", size=1.3, color="white"))
+    parts.append(text(cx_cav, z2 + (z3 - z2) / 2 + 0.3,
+                      "steel (ref)", size=0.7, color="white"))
+    parts.append(text((mir + mor) / 2, z1 + mt / 2 + 0.3,
+                      "magnet (ref)", size=0.7, color="white"))
 
     # ── Geometry (ExportSVG output) ────────────────────────────────────
     parts.append(geom_xml)
-
-    # ── Thin dashed zone boundaries ───────────────────────────────────
-    for z_val in (z1, z2, z3, z4, z5):
-        parts.append(
-            f'<line x1="{fx(cir - 0.5)}" y1="{fy(z_val)}" '
-            f'x2="{fx(cor + 0.5)}" y2="{fy(z_val)}" '
-            f'stroke="#bbb" stroke-width="0.12" stroke-dasharray="0.8,0.8"/>'
-        )
 
     # ── Left-side Z zone brackets ──────────────────────────────────────
     bx  = cir - 2.0    # bracket line x
@@ -368,25 +365,32 @@ def generate_cross_section_svg(data: dict) -> str:
         (0,  z1, f"base {z1:.1f}"),
         (z1, z2, f"magnet clr {z2-z1:.1f}"),
         (z2, z3, f"steel {z3-z2:.3f}"),
-        (z3, z4, f"chamfer {z4-z3:.1f}"),
+        (z3, z4, f"snap {z4-z3:.1f}"),
+        (z4, z5, f"chamfer {z5-z4:.1f}"),
     ]
     for z_bot, z_top, label in zones_full:
         mid = (z_bot + z_top) / 2
         parts.append(line(bx - tk, z_bot, bx, z_bot))
         parts.append(line(bx - tk, z_top, bx, z_top))
         parts.append(line(bx, z_bot, bx, z_top))
-        parts.append(text(lx, mid + 0.5, label, anchor="end", size=1.3))
+        parts.append(text(lx, mid + 0.3, label, anchor="end", size=0.65))
 
-    # Snap zone (0.2mm) — leader callout instead of bracket
-    snap_cx = cir - 4.0
-    snap_cy = (z4 + z5) / 2
-    parts.append(
-        f'<line x1="{fx(cir)}" y1="{fy(snap_cy)}" '
-        f'x2="{fx(snap_cx - 0.3)}" y2="{fy(snap_cy)}" '
-        f'stroke="{fc}" stroke-width="0.12"/>'
-    )
-    parts.append(text(snap_cx - 0.5, snap_cy + 0.5,
-                      f"snap {z5-z4:.1f}", anchor="end", size=1.3))
+    # Snap beads sit at z3→z4 (step inward at steel top edge)
+    # Leader lines point from snap step mid-height outward
+    snap_inner_x = sir - data["snap_overhang"]   # 76.0 mm at z3
+    snap_outer_x = sor - data["snap_overhang"]   # 101.4 mm at z3
+    snap_mid_z   = (z3 + z4) / 2
+    call_y       = z5 + 2.0
+    for sx_bead, anchor_side in [(snap_inner_x, "end"), (snap_outer_x, "start")]:
+        parts.append(
+            f'<line x1="{fx(sx_bead)}" y1="{fy(snap_mid_z)}" '
+            f'x2="{fx(sx_bead)}" y2="{fy(call_y)}" '
+            f'stroke="{fc}" stroke-width="0.07"/>'
+        )
+        parts.append(text(
+            sx_bead + (-0.3 if anchor_side == "end" else 0.3),
+            call_y + 0.8, f"snap 0.2 mm", anchor=anchor_side, size=0.65,
+        ))
 
     # ── Radial tick marks + angled labels (below geometry) ────────────
     ry_base = vb_y + vb_h + 1.5   # just below geometry
@@ -413,7 +417,7 @@ def generate_cross_section_svg(data: dict) -> str:
             f'stroke="{fc}" stroke-width="0.12"/>'
         )
         parts.append(text(lx2, ly2, rlabel, anchor="middle",
-                          size=1.3, rotate=-50))
+                          size=0.65, rotate=-50))
 
     # ── Wall-width arrows (below radial labels) ─────────────────────────
     arrow_y = ry_base + label_drop + 5
@@ -428,7 +432,7 @@ def generate_cross_section_svg(data: dict) -> str:
             f'stroke="{fc}" stroke-width="0.15" '
             f'marker-start="url(#a2)" marker-end="url(#a1)"/>'
         )
-        parts.append(text(mx, arrow_y - 0.8, lbl, size=1.3))
+        parts.append(text(mx, arrow_y - 0.4, lbl, size=0.65))
 
     parts.append("</svg>")
     return "\n".join(parts)
