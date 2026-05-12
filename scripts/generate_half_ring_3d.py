@@ -244,11 +244,15 @@ def make_steel_cavity_void(data: dict) -> Shape:
 
 
 def make_magnet_pocket_void(data: dict, index: int) -> Shape:
-    """Single expanded magnet pocket void with dogbone cylinders at the 4 vertical
-    corner edges (where radial wall meets tangential end wall).
+    """Single expanded magnet pocket void with full dogbone relief.
 
-    The dogbone cylinders span z1 → z2+0.05 (same as the pocket) and do NOT
-    go below z1, so the 1 mm base skin is never undercut.
+    Vertical cylinders (Z-axis) at the 4 corner edges handle the wall-wall
+    intersections.
+
+    Horizontal cylinders (X and Y axis) along all 4 bottom edges handle the
+    floor-wall intersections.  Each horizontal cylinder is centred at
+    z = r_dog above the floor, so its bottom is tangent to z=0 (the floor) —
+    no material is removed below z=0 and the 1 mm base skin is safe.
     """
     mir   = data["magnet_inner_radius"]
     z1    = data["z1"]
@@ -257,23 +261,38 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
     W     = data["magnet_width"]  + 0.10  # tangential:  5.10 mm
     T     = (z2 - z1) + 0.05             # axial:        2.15 mm
     clr   = 0.05
-    r_dog = data["dogbone_radius"]        # 0.25 mm
+    r     = data["dogbone_radius"]        # 0.25 mm
 
     mir_f = mir - clr                     # expanded inner radial face
-    mor_f = mir_f + L                     # expanded outer radial face
 
-    # ── Core rectangular void + dogbone cylinders ───────────────────
-    # Build everything inside one BuildPart so all shapes are automatically
-    # fused into a single solid.  BuildPart context-mode ADD is the default
-    # for each extrude(), so the box and all 4 cylinders union into one body.
     with BuildPart() as p:
+        # Core rectangular void
         Box(L, W, T, align=(Align.MIN, Align.CENTER, Align.MIN))
-        # 4 corner cylinders — placed relative to box origin (mir_f, 0, z1)
+
+        # ── Vertical corner cylinders (Z axis) ────────────────────
         for cx_off in (0.0, L):
             for cy_off in (-W / 2, +W / 2):
                 with BuildSketch(Plane(origin=(cx_off, cy_off, 0))):
-                    Circle(r_dog)
+                    Circle(r)
                 extrude(amount=T)
+
+        # ── Horizontal floor-edge cylinders ───────────────────────
+        # Centred at z=r (one radius above floor) so groove bottom is
+        # tangent to z=0.  Axis along X for the 2 long tangential walls,
+        # axis along Y for the 2 short radial walls.
+
+        # Long walls (y = ±W/2), cylinders run radially (along X)
+        for cy_off in (-W / 2, +W / 2):
+            with BuildSketch(Plane(origin=(0, cy_off, r), z_dir=(1, 0, 0))):
+                Circle(r)
+            extrude(amount=L)
+
+        # Short walls (x = 0 and x = L), cylinders run tangentially (along Y)
+        for cx_off in (0.0, L):
+            with BuildSketch(Plane(origin=(cx_off, -W / 2, r), z_dir=(0, 1, 0))):
+                Circle(r)
+            extrude(amount=W)
+
     void = p.part.moved(Location((mir_f, 0.0, z1)))
 
     # ── Rotate to pocket's angular position ──────────────────────────
