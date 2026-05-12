@@ -233,10 +233,11 @@ def make_steel_cavity_void(data: dict) -> Shape:
 
 
 def make_magnet_pocket_void(data: dict, index: int) -> Shape:
-    """Single expanded magnet pocket void, with 0.05 mm clearance on all sides.
+    """Single expanded magnet pocket void with dogbone cylinders at the 4 vertical
+    corner edges (where radial wall meets tangential end wall).
 
-    The pocket is a Box aligned radially at angular position ``index``,
-    spanning z1 (cavity floor) to z2+0.05 (top clearance).
+    The dogbone cylinders span z1 → z2+0.05 (same as the pocket) and do NOT
+    go below z1, so the 1 mm base skin is never undercut.
     """
     mir   = data["magnet_inner_radius"]
     z1    = data["z1"]
@@ -245,84 +246,89 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
     W     = data["magnet_width"]  + 0.10  # tangential:  5.10 mm
     T     = (z2 - z1) + 0.05             # axial:        2.15 mm
     clr   = 0.05
+    r_dog = data["dogbone_radius"]        # 0.25 mm
 
-    # Angle: 0° = first magnet at (X>0, Y=0); subsequent magnets CCW
-    theta = data["pitch_angle"]
-    angle = math.degrees(index * theta)
+    mir_f = mir - clr                     # expanded inner radial face
+    mor_f = mir_f + L                     # expanded outer radial face
 
+    # ── Core rectangular void ────────────────────────────────────────
     with BuildPart() as p:
         Box(L, W, T, align=(Align.MIN, Align.CENTER, Align.MIN))
-    void = p.part.moved(Location((mir - clr, 0.0, z1)))
+    void = p.part.moved(Location((mir_f, 0.0, z1)))
+
+    # ── Dogbone cylinders at the 4 vertical corner edges ────────────
+    # Placed at z1, height T: bottom exactly at z1, never below the base.
+    with BuildPart() as c:
+        with BuildSketch(Plane.XY):
+            Circle(r_dog)
+        extrude(amount=T)
+    cyl = c.part
+
+    for cx in (mir_f, mor_f):
+        for cy in (-W / 2, +W / 2):
+            void = void.fuse(cyl.moved(Location((cx, cy, z1))))
+
+    # ── Rotate to pocket's angular position ──────────────────────────
+    angle = math.degrees(index * data["pitch_angle"])
     return void.rotate(Axis.Z, angle)
 
 
 def make_steel_corner_dogbones(data: dict) -> Compound:
-    """Half-torus cuts at the two floor corners of the steel seat (z=z2).
+    """Half-torus cuts at the two floor corners of the steel seat.
 
-    Inner corner: torus at r = sir + 0.05 mm clearance, z = z2
-    Outer corner: torus at r = sor - 0.05 mm clearance, z = z2
-    The quarter-circle relief ensures the steel ring seats fully.
+    The floor is at z = z2 - 0.05 mm (clearance gap below steel ring).
+    Inner corner: torus at r = sir + 0.05, z = z2-0.05
+    Outer corner: torus at r = sor - 0.05, z = z2-0.05
+    Relieves the radius the printer leaves at each bottom corner so the
+    steel ring seats fully against the cavity floor.
     """
     sir = data["steel_inner_radius"]
     sor = data["steel_outer_radius"]
     z2  = data["z2"]
     r   = data["dogbone_radius"]
     clr = 0.05
+    z_floor = z2 - clr      # actual cavity floor level
     return Compound([
-        _torus_cut(sir + clr, z2, r),
-        _torus_cut(sor - clr, z2, r),
+        _torus_cut(sir + clr, z_floor, r),
+        _torus_cut(sor - clr, z_floor, r),
     ])
 
 
-def make_magnet_pocket_dogbones(data: dict) -> Compound:
-    """Dogbone relief cuts at all four sides of every magnet pocket.
+def make_snap_root_dogbones(data: dict) -> Compound:
+    """Half-torus cuts at the base of each snap arm.
 
-    Radial faces (inner + outer): continuous half-tori at r=mir-clr and
-    r=mor+clr at z=z1.  These are full 180° rings — they also round the
-    fin base corners by 0.25 mm, which is harmless.
+    The snap arm for the outer wall starts at (sor-snap, z3) in the XZ
+    profile; the inner arm at (sir+snap, z3).  A torus at those points
+    cuts into the PETG wall behind each snap face, creating a thin hinge
+    line so the snap can flex inward/outward more easily.
 
-    Tangential faces (angular ends): one cylinder per pocket per end per
-    radial face = 4 × 45 = 180 cylinders.  Not visible in the Y=0
-    cross-section but present in the STL.
+    The torus extends ±r_dog in both radius and z.  The radial extent
+    goes into the wall material (away from the cavity) — it does NOT
+    touch the snap tooth face itself.  The axial extent goes 0.25 mm
+    above z3 (into the snap arm) and 0.25 mm below z3 (into the seat,
+    which is already void — no material removed there).
     """
-    mir_f = data["magnet_inner_radius"] - 0.05
-    mor_f = data["magnet_outer_radius"] + 0.05
-    z1    = data["z1"]
-    z2    = data["z2"]
-    r     = data["dogbone_radius"]
-    theta = data["pitch_angle"]
-    W_exp = data["magnet_width"] + 0.10
-
-    # ── Continuous tori at the two radial faces ───────────────────────
-    inner_torus = _torus_cut(mir_f, z1, r)
-    outer_torus = _torus_cut(mor_f, z1, r)
-
-    # ── Cylinders at the tangential (angular) ends ─────────────────────
-    cyl_h = (z2 - z1) + r
-    with BuildPart() as tmpl:
-        with BuildSketch(Plane.XY):
-            Circle(r)
-        extrude(amount=cyl_h)
-    cyl = tmpl.part
-
-    mid_r    = (mir_f + mor_f) / 2.0
-    half_arc = math.asin(min(W_exp / 2.0 / mid_r, 1.0))
-
-    end_cyls = []
-    for i in range(data["magnets_per_half"]):
-        angle = i * theta
-        for side in (+1, -1):
-            t = angle + side * half_arc
-            for r_face in (mir_f, mor_f):
-                cx = r_face * math.cos(t)
-                cy = r_face * math.sin(t)
-                end_cyls.append(cyl.moved(Location((cx, cy, z1))))
-
-    return Compound([inner_torus, outer_torus] + end_cyls)
+    sir  = data["steel_inner_radius"]
+    sor  = data["steel_outer_radius"]
+    z3   = data["z3"]
+    snap   = data["snap_overhang"]    # 0.2 mm
+    r      = data["dogbone_radius"]   # 0.25 mm
+    z_hinge = z3 - r   # torus centred here → top of circle tangent to z3,
+                        # so the entire torus body sits below the snap arm
+    return Compound([
+        _torus_cut(sor - snap, z_hinge, r),   # outer snap root
+        _torus_cut(sir + snap, z_hinge, r),   # inner snap root
+    ])
 
 
 def make_cover(data: dict) -> Shape:
-    """Subtractive build: blank → steel cavity → magnet pockets → dogbones."""
+    """Subtractive build: blank → steel cavity → magnet pockets → dogbones.
+
+    Each magnet pocket void already includes its own 4 dogbone cylinders at
+    the vertical corner edges (fused before cutting), so the pocket and its
+    corner relief are cut in a single CSG operation.  Steel-corner and
+    snap-root tori are cut separately (they are full-ring revolutions).
+    """
     print("  blank …", end=" ", flush=True)
     cover = make_cover_blank(data)
 
@@ -330,15 +336,15 @@ def make_cover(data: dict) -> Shape:
     cover = cover.cut(make_steel_cavity_void(data))
 
     n = data["magnets_per_half"]
-    print(f"magnet pockets (×{n}) …", end=" ", flush=True)
+    print(f"magnet pockets (×{n}, with dogbones) …", end=" ", flush=True)
     for i in range(n):
         cover = cover.cut(make_magnet_pocket_void(data, i))
 
-    print("steel dogbones …", end=" ", flush=True)
+    print("steel corner dogbones …", end=" ", flush=True)
     cover = cover.cut(make_steel_corner_dogbones(data))
 
-    print("pocket dogbones …", end=" ", flush=True)
-    cover = cover.cut(make_magnet_pocket_dogbones(data))
+    print("snap root dogbones …", end=" ", flush=True)
+    cover = cover.cut(make_snap_root_dogbones(data))
 
     print("done.")
     return cover
@@ -369,7 +375,7 @@ def check_no_intersections(named_parts: dict[str, Shape], tol: float = 0.01) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate half-ring cover STL/STEP")
     parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--step", action="store_true")
+    parser.add_argument("--no-step", action="store_true", help="Skip STEP export")
     parser.add_argument("--no-stl", action="store_true")
     parser.add_argument(
         "--check-intersections", action="store_true",
@@ -404,7 +410,7 @@ def main() -> None:
         export_stl(cover, str(path))
         print(f"  → {path}")
 
-    if args.step:
+    if not args.no_step:
         path = output_dir / "half_ring_cover.step"
         export_step(cover, str(path))
         print(f"  → {path}")
