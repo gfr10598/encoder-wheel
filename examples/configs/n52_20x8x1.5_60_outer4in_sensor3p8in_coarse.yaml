@@ -9,8 +9,8 @@ airgap_steps: 16
 theta_steps: 256
 theta_sweep_deg: 12.0
 model: discrete
-discrete_grid: [40,16,3]
+discrete_grid: [10,4,1]
 outdir: examples/plots
-summary_path: examples/plots/summary_n52_60_fine.json
+summary_path: examples/plots/summary_n52_60_coarse.json
 steel_backing_thickness_mm: 3.175
 steel_mu_r: 5.7

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.dirname(__file__))
 from analysis_utils import compute_field_from_magnets
 from coords import cyl_to_cart
-from scripts.common_config import load_config, validate_config
+from common_config import load_config, validate_config
 
 def build_ring_config(n_magnets, r_inner, magnet_dims, Br=1.45):
     r_center = r_inner + magnet_dims[0]/2.0
@@ -25,28 +25,56 @@ def build_ring_config(n_magnets, r_inner, magnet_dims, Br=1.45):
         mags.append({'center': [x,y,0.0], 'dims': magnet_dims, 'axis': axis_vec, 'Br': Br})
     return mags
 
-def compute_airgap_result(params):
-    """Compute field analysis for a single airgap. Called in parallel worker."""
-    ag, mags, sensor_pos, n, theta_steps, theta_end_rad, model, Br, discrete_grid, steel_params, outdir = params
+def compute_field_analytic_vectorized(mags, sensor_pos, n, theta_steps, thetas, Br=1.45):
+    """Compute field using analytic rectangular prism method, vectorized over theta points."""
+    from analysis_utils import analytic_rect_prism_B
+    
+    cos_th = np.cos(thetas)
+    sin_th = np.sin(thetas)
+    
     bx = np.zeros(theta_steps)
     by = np.zeros(theta_steps)
     bz = np.zeros(theta_steps)
+    
+    for mi in range(n):
+        m = mags[mi]
+        cx, cy, cz = m['center']
+        
+        # Rotate center for all theta values
+        cx_rot = cx * cos_th - cy * sin_th
+        cy_rot = cx * sin_th + cy * cos_th
+        cz_rot = np.full(theta_steps, cz)
+        
+        # Compute analytic field for each rotated position
+        for idx in range(theta_steps):
+            center_rot_mm = [cx_rot[idx], cy_rot[idx], cz_rot[idx]]
+            try:
+                B = analytic_rect_prism_B(center_rot_mm, m['dims'], m['axis'], sensor_pos, Br=Br)
+                bx[idx] += B[0]
+                by[idx] += B[1]
+                bz[idx] += B[2]
+            except Exception as e:
+                # Skip magnets with issues (e.g., non-z-axis magnetization)
+                pass
+    
+    return bx, by, bz
+
+def compute_airgap_result(params):
+    """Compute field analysis for a single airgap using both discrete and analytic methods. Vectorized over all theta points."""
+    ag, mags, sensor_pos, n, theta_steps, theta_end_rad, model, Br, discrete_grid, steel_params, outdir = params
     thetas = np.linspace(0, theta_end_rad, theta_steps, endpoint=False)
     
-    for idx, th in enumerate(thetas):
-        rotated_centers = []
-        for mi in range(n):
-            m = mags[mi]
-            c = np.array(m['center'])
-            cr = np.array([c[0]*math.cos(th)-c[1]*math.sin(th), c[0]*math.sin(th)+c[1]*math.cos(th), c[2]])
-            mm = dict(m)
-            mm['center'] = cr
-            # Magnetization axis stays fixed in lab frame (Z direction); don't rotate it
-            rotated_centers.append(mm)
-        
-        B = compute_field_from_magnets(rotated_centers, sensor_pos, model=model, Br=Br, 
-                                       discrete_grid=discrete_grid, **steel_params)
-        bx[idx] = B[0]; by[idx] = B[1]; bz[idx] = B[2]
+    # Compute both methods for comparison
+    # Method 1: Discrete (volumetric discretization)
+    bx_disc, by_disc, bz_disc = compute_field_discrete_vectorized(mags, sensor_pos, n, theta_steps, thetas, Br, discrete_grid)
+    
+    # Method 2: Analytic (rectangular prism closed-form)
+    bx_ana, by_ana, bz_ana = compute_field_analytic_vectorized(mags, sensor_pos, n, theta_steps, thetas, Br)
+    
+    # Use discrete method for main metrics
+    bx = bx_disc
+    by = by_disc
+    bz = bz_disc
     
     # FFT analysis
     complex_signal = np.ascontiguousarray(np.array(bx, dtype=np.float64) + 1j * np.array(by, dtype=np.float64), dtype=np.complex128)
@@ -85,25 +113,166 @@ def compute_airgap_result(params):
               'amp_fund_bx_mT': float(fundamental_bx*1e3), 'amp_fund_by_mT': float(fundamental_by*1e3), 
               'thd_pct': float(thd), 'checks': checks}
     
-    # Plot tangential (By) and axial (Bz) components
-    plt.figure(figsize=(8,4))
-    plt.plot(np.degrees(thetas), by*1e3, label='By (tangential)')
-    plt.plot(np.degrees(thetas), bz*1e3, label='Bz (axial)')
-    plt.xlabel('disk rotation (deg)'); plt.legend(); plt.title(f'airgap {ag} mm')
-    plt.tight_layout()
-    plt.savefig(os.path.join(outdir,f'raw_B_{int(ag*100)}.png'))
+    # Compute energy (sum of squared values) for both methods
+    energy_by_disc = float(np.sum(by_disc**2))
+    energy_bz_disc = float(np.sum(bz_disc**2))
+    energy_by_ana = float(np.sum(by_ana**2))
+    energy_bz_ana = float(np.sum(bz_ana**2))
+    
+    # Energy ratios
+    by_bz_ratio_disc = energy_by_disc / energy_bz_disc if energy_bz_disc > 0 else 0
+    by_bz_ratio_ana = energy_by_ana / energy_bz_ana if energy_bz_ana > 0 else 0
+    
+    # Plot both methods side-by-side: discrete vs analytic for By (tangential) and Bz (axial)
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8))
+    
+    # By (tangential/encoder signal)
+    axes[0].plot(np.degrees(thetas), by_disc*1e3, label='Discrete', linewidth=2, color='C0')
+    axes[0].plot(np.degrees(thetas), by_ana*1e3, label='Analytic', linewidth=1.5, linestyle='--', alpha=0.7, color='C1')
+    
+    # Mark expected peaks (at 3° and 9° for alternating polarity)
+    axes[0].axvline(3, color='gray', linestyle=':', alpha=0.5, label='Expected peaks')
+    axes[0].axvline(9, color='gray', linestyle=':', alpha=0.5)
+    axes[0].axvline(0, color='red', linestyle='-.', alpha=0.3, linewidth=0.8, label='Expected zeros')
+    axes[0].axvline(6, color='red', linestyle='-.', alpha=0.3, linewidth=0.8)
+    axes[0].axvline(12, color='red', linestyle='-.', alpha=0.3, linewidth=0.8)
+    
+    axes[0].set_ylabel('By (tangential) [mT]')
+    axes[0].legend(loc='upper left')
+    axes[0].grid(True, alpha=0.3)
+    axes[0].set_title(f'Encoder signal: By (airgap {ag} mm)')
+    
+    # Bz (axial/pole field)
+    axes[1].plot(np.degrees(thetas), bz_disc*1e3, label='Discrete', linewidth=2, color='C0')
+    axes[1].plot(np.degrees(thetas), bz_ana*1e3, label='Analytic', linewidth=1.5, linestyle='--', alpha=0.7, color='C1')
+    axes[1].set_xlabel('disk rotation (deg)')
+    axes[1].set_ylabel('Bz (axial) [mT]')
+    axes[1].legend(loc='upper left')
+    axes[1].grid(True, alpha=0.3)
+    axes[1].set_title(f'Pole field: Bz (airgap {ag} mm)')
+    
+    # Add energy ratios as text box (By/Bz, not discrete/analytic)
+    energy_text = f'Energy Ratio (By/Bz):\n'
+    energy_text += f'Discrete: {by_bz_ratio_disc:.3f}\n'
+    energy_text += f'Analytic: {by_bz_ratio_ana:.3f}\n'
+    energy_text += f'\n'
+    energy_text += f'Absolute Energy:\n'
+    energy_text += f'By_disc:  {energy_by_disc:.4e}\n'
+    energy_text += f'Bz_disc:  {energy_bz_disc:.4e}\n'
+    energy_text += f'By_ana:   {energy_by_ana:.4e}\n'
+    energy_text += f'Bz_ana:   {energy_bz_ana:.4e}'
+    
+    fig.text(0.98, 0.97, energy_text, transform=fig.transFigure, 
+             fontsize=9, verticalalignment='top', horizontalalignment='right',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8), family='monospace')
+    
+    plt.tight_layout(rect=[0, 0, 0.75, 1])  # Leave room for text box
+    plt.savefig(os.path.join(outdir, f'compare_methods_{int(ag*100)}.png'), dpi=100)
     plt.close()
     
     return result
 
-def run_sim(cfg):
+def compute_field_discrete_vectorized(mags, sensor_pos, n, theta_steps, thetas, Br, discrete_grid):
+    """Compute field using discrete (volumetric) method, vectorized over theta points."""
+    cos_th = np.cos(thetas)
+    sin_th = np.sin(thetas)
+    
+    bx = np.zeros(theta_steps)
+    by = np.zeros(theta_steps)
+    bz = np.zeros(theta_steps)
+    
+    # Vectorized field computation: rotate all magnets for all theta points at once
+    for mi in range(n):
+        m = mags[mi]
+        cx, cy, cz = m['center']
+        
+        # Rotate center for all theta values at once (broadcasting)
+        cx_rot = cx * cos_th - cy * sin_th
+        cy_rot = cx * sin_th + cy * cos_th
+        cz_rot = np.full(theta_steps, cz)
+        
+        # Compute field contribution from this magnet at all theta points
+        if discrete_grid != (1, 1, 1):
+            from analysis_utils import discretize_block
+            dg = tuple(discrete_grid) if len(discrete_grid) == 3 else (discrete_grid[0], discrete_grid[1], 1)
+            subs = discretize_block(m['center'], m['dims'], m['axis'], grid=dg)
+            
+            # For each sub-dipole, compute field at all theta points in batch
+            for sub_center_m, axis_unit in subs:
+                # sub_center_m is the LOCAL sub-dipole center in meters; we need to rotate and offset
+                sub_x_mm = sub_center_m[0] * 1000 - m['center'][0]
+                sub_y_mm = sub_center_m[1] * 1000 - m['center'][1]
+                sub_z_mm = sub_center_m[2] * 1000 - m['center'][2]
+                
+                # Rotate sub-dipole position
+                sub_x_rot = sub_x_mm * cos_th - sub_y_mm * sin_th
+                sub_y_rot = sub_x_mm * sin_th + sub_y_mm * cos_th
+                sub_z_rot = sub_z_mm
+                
+                # Add rotated magnet center
+                sub_x_final = (cx_rot + sub_x_rot) / 1000.0
+                sub_y_final = (cy_rot + sub_y_rot) / 1000.0
+                sub_z_final = (cz_rot + sub_z_rot) / 1000.0
+                
+                # Compute moment for this sub-dipole
+                from analysis_utils import magnet_dipole_from_block
+                m_total_vec = magnet_dipole_from_block(Br, m['dims'], m['axis'])
+                dg_tuple = tuple(discrete_grid) if len(discrete_grid) == 3 else (discrete_grid[0], discrete_grid[1], 1)
+                nsubs = dg_tuple[0] * dg_tuple[1] * dg_tuple[2]
+                m_total_mag = np.linalg.norm(m_total_vec)
+                m_per_mag = m_total_mag / nsubs
+                m_vec = m_per_mag * axis_unit
+                
+                # Compute field at all theta points (vectorized)
+                r_vecs = np.stack([sub_x_final - sensor_pos[0], 
+                                   sub_y_final - sensor_pos[1],
+                                   sub_z_final - sensor_pos[2]], axis=1)
+                
+                r_norms = np.linalg.norm(r_vecs, axis=1)
+                r_hats = r_vecs / (r_norms[:, np.newaxis] + 1e-30)
+                
+                # Dipole field: B = (mu0/4pi) * (3*(m·r_hat)*r_hat - m) / r^3
+                from analysis_utils import mu0
+                m_dot_rhat = np.dot(m_vec, r_hats.T)
+                B_contrib = (mu0 / (4 * math.pi)) * (3 * m_dot_rhat[:, np.newaxis] * r_hats - m_vec) / (r_norms[:, np.newaxis]**3 + 1e-30)
+                bx += B_contrib[:, 0]
+                by += B_contrib[:, 1]
+                bz += B_contrib[:, 2]
+        else:
+            # Simple dipole model
+            from analysis_utils import magnet_dipole_from_block, mu0
+            m_vec = magnet_dipole_from_block(Br, m['dims'], m['axis'])
+            
+            r_vecs = np.stack([cx_rot/1000.0 - sensor_pos[0],
+                               cy_rot/1000.0 - sensor_pos[1],
+                               cz_rot/1000.0 - sensor_pos[2]], axis=1)
+            
+            r_norms = np.linalg.norm(r_vecs, axis=1)
+            r_hats = r_vecs / (r_norms[:, np.newaxis] + 1e-30)
+            
+            m_dot_rhat = np.dot(m_vec, r_hats.T)
+            B_contrib = (mu0 / (4 * math.pi)) * (3 * m_dot_rhat[:, np.newaxis] * r_hats - m_vec) / (r_norms[:, np.newaxis]**3 + 1e-30)
+            bx += B_contrib[:, 0]
+            by += B_contrib[:, 1]
+            bz += B_contrib[:, 2]
+    
+    return bx, by, bz
+
+def run_sim(cfg, single_airgap_mm=None):
+    """Run simulation for all airgaps (or single airgap if specified)."""
     n = cfg['n_magnets']
     outer = cfg['outer_radius_mm']
     sensor_offset_from_outer = float(cfg.get('sensor_offset_from_outer_mm', 5.0))
     sensor_r = float(cfg.get('sensor_radius_mm', outer - sensor_offset_from_outer))
     magnet_dims = cfg['magnet_dims_mm']
     Br = cfg.get('Br_T', 1.45)
-    airgaps = np.linspace(cfg['airgap_min_mm'], cfg['airgap_max_mm'], cfg.get('airgap_steps',8))
+    
+    # Determine which airgaps to compute
+    if single_airgap_mm is not None:
+        airgaps = np.array([float(single_airgap_mm)])
+    else:
+        airgaps = np.linspace(cfg['airgap_min_mm'], cfg['airgap_max_mm'], cfg.get('airgap_steps',8))
+    
     theta_steps = cfg.get('theta_steps',1024)
     model = cfg.get('model','dipole')
     discrete_grid = tuple(cfg.get('discrete_grid',(1,1)))
@@ -136,7 +305,7 @@ def run_sim(cfg):
         sensor_pos = cyl_to_cart(sensor_r/1000.0, math.radians(sensor_theta_deg), sensor_z)
         work_items.append((ag, mags, sensor_pos, n, theta_steps, theta_end_rad, model, Br, discrete_grid, steel_params, outdir))
     
-    # Run airgaps sequentially (ProcessPoolExecutor had multiprocessing issues)
+    # Run airgaps sequentially (vectorized per-airgap)
     results = []
     for item in work_items:
         result = compute_airgap_result(item)
@@ -151,12 +320,13 @@ def run_sim(cfg):
     print('Done. Summary written to', summary_path)
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument('--config', required=True)
+    p = argparse.ArgumentParser(description='Analyze magnetic field for encoder wheel across airgap range')
+    p.add_argument('--config', required=True, help='Config YAML file')
+    p.add_argument('--airgap', type=float, default=None, help='Compute single airgap (mm) only (for parallel batch processing)')
     args = p.parse_args()
     cfg = load_config(args.config)
     validate_config(cfg, ['n_magnets', 'outer_radius_mm', 'magnet_dims_mm'])
-    run_sim(cfg)
+    run_sim(cfg, single_airgap_mm=args.airgap)
 
 if __name__ == '__main__':
     main()
