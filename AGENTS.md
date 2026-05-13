@@ -4,7 +4,7 @@
 
 ### Project shape
 
-- This is a **standard-library-only Python generator repository**.
+- This is a **Python generator repository**.  The core fabrication scripts use only the standard library; `scripts/generate_half_ring_3d.py` additionally requires **build123d** (`pip install build123d`).
 - The shared geometry core lives in `scripts/common.py`.
 - Fabrication generators live in:
   - `scripts/generate_laser.py`
@@ -31,6 +31,7 @@ python scripts/generate_laser.py --output /tmp/encoder_wheel_laser.svg
 python scripts/generate_cnc.py --output /tmp/encoder_wheel_cnc.dxf
 python scripts/generate_3d.py --output /tmp/encoder_wheel_3d.scad
 python scripts/generate_half_ring_docs.py
+conda run -n base python scripts/generate_half_ring_3d.py
 ```
 
 `python -m unittest discover -v` currently reports **no tests** in this clone, so
@@ -38,23 +39,22 @@ script execution is the main regression check.
 
 ## 10 in Half Ring Over Magnets
 
-This repository now captures the requested **documentation-only** design intent
-for the printed half ring that snaps over the steel backing half ring and its
-magnet array.  There is still **no CAD implementation** for this part in the
-main generators; the current change only records the geometry, math, and SVG
-reference diagrams for future agent or CAD work.
+This repository captures the design intent for the printed half ring that snaps
+over the steel backing half ring and its magnet array.  SVG reference diagrams
+are in `images/` and a build123d 3D model exporter lives in
+`scripts/generate_half_ring_3d.py`; run it to produce `examples/half_ring_cover.stl`.
 
 ### Fixed inputs
 
 | Item | Value |
 |------|-------|
-| Printed cover half ring | 8.492 in OD, 5.508 in ID |
+| Printed cover half ring | 8.250 in OD, 5.750 in ID |
 | Steel backing half ring | 8.000 in OD, 6.000 in ID, 1/8 in thick |
 | Magnet size | 20 × 5 × 2 mm |
 | Magnet count | 90 total, 45 per half ring |
 | Base thickness | 1.0 mm |
 | Magnet pocket / end-wall thickness | 2.04 mm |
-| Steel capture walls | 1/4 in − 0.1 mm = 6.25 mm |
+| Cover wall thickness | 1/8 in = 3.175 mm each side |
 | Extra wall height above steel cavity | 1.0 mm |
 | Snap overhang | 0.2 mm |
 | Outer retention tabs | 2.0 mm wide, 1.0 mm radial overhang |
@@ -63,9 +63,9 @@ reference diagrams for future agent or CAD work.
 
 | Derived item | Value |
 |--------------|-------|
-| Printed cover inner radius | 69.95 mm |
-| Printed cover outer radius | 107.85 mm |
-| Cover radial span | 37.90 mm (1.492 in) |
+| Printed cover inner radius | 73.025 mm |
+| Printed cover outer radius | 104.775 mm |
+| Cover radial span | 31.75 mm (1.250 in) |
 | Steel ring inner radius | 76.20 mm |
 | Steel ring outer radius | 101.60 mm |
 | Steel ring radial span | 25.40 mm |

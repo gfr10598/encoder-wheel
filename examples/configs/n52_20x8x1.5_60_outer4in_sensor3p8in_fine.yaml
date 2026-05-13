@@ -1,0 +1,16 @@
+n_magnets: 60
+magnet_dims_mm: [20.0, 8.0, 1.5]
+Br_T: 1.45
+outer_radius_mm: 101.6
+sensor_radius_mm: 96.52
+airgap_min_mm: 0.5
+airgap_max_mm: 8.0
+airgap_steps: 16
+theta_steps: 2048
+model: dipole
+discrete_grid: [1,1]
+outdir: examples/plots
+summary_path: examples/plots/summary_n52_60_fine.json
+pole_pairs_window: 3
+steel_backing_thickness_mm: 3.175
+steel_mu_r: 5.7
