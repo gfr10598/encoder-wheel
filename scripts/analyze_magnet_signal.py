@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from concurrent.futures import ProcessPoolExecutor
 sys.path.insert(0, os.path.dirname(__file__))
 from analysis_utils import compute_field_from_magnets
 from coords import cyl_to_cart
@@ -137,11 +136,11 @@ def run_sim(cfg):
         sensor_pos = cyl_to_cart(sensor_r/1000.0, math.radians(sensor_theta_deg), sensor_z)
         work_items.append((ag, mags, sensor_pos, n, theta_steps, theta_end_rad, model, Br, discrete_grid, steel_params, outdir))
     
-    # Run 8 airgaps in parallel
+    # Run airgaps sequentially (ProcessPoolExecutor had multiprocessing issues)
     results = []
-    with ProcessPoolExecutor(max_workers=8) as executor:
-        for result in executor.map(compute_airgap_result, work_items):
-            results.append(result)
+    for item in work_items:
+        result = compute_airgap_result(item)
+        results.append(result)
     
     # Sort results by airgap for consistent output
     results.sort(key=lambda r: r['airgap_mm'])
