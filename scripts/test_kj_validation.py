@@ -19,11 +19,11 @@ def test_single_magnet():
     print("=" * 70)
     print()
     
-    # N52 magnet: 20×8×1.5 mm
-    magnet_dims_mm = [20.0, 8.0, 1.5]  # [L, W, T] in mm
+    # N52 magnet: 10×5×1 mm (K&J test case)
+    magnet_dims_mm = [10.0, 5.0, 1.0]  # [L, W, T] in mm
     
     # Magnet positioned at origin (0, 0, 0)
-    # Center at z = 0.75 mm (half height)
+    # Center at z = 0.5 mm (half height)
     magnet_center_mm = [0.0, 0.0, magnet_dims_mm[2] / 2]
     
     print("Magnet geometry:")
@@ -32,8 +32,8 @@ def test_single_magnet():
     print()
     
     # Sensor: 10 mm above N pole surface
-    # N pole surface at z = magnet_height = 1.5 mm
-    # Sensor at z = 1.5 + 10 = 11.5 mm
+    # N pole surface at z = magnet_height = 1.0 mm
+    # Sensor at z = 1.0 + 10 = 11.0 mm
     sensor_z_mm = magnet_dims_mm[2] + 10.0
     sensor_pos_mm = [0.0, 0.0, sensor_z_mm]
     
