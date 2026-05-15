@@ -6,7 +6,7 @@ sensor_radius_mm: 96.52
 airgap_min_mm: 0.5
 airgap_max_mm: 8.0
 airgap_steps: 16
-theta_steps: 256
+theta_steps: 768
 theta_sweep_deg: 12.0
 model: discrete
 discrete_grid: [40,16,3]
