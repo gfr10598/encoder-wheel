@@ -1,0 +1,15 @@
+{
+  "_comment": "28 rectangular 10x10x3mm magnets on outer surface of 4\" cast iron tube",
+  "_geometry": "tube OD=4in=101.6mm -> inner_r=50.8mm; magnet radial=3mm -> outer_r=53.8mm, center_r=52.3mm; 10mm tangential -> arc=10.955deg; 10mm axial; pitch=12.857deg, gap=1.74mm",
+  "_magnets": "10x10x3mm NdFeB, radially magnetized, alternating N/S, no sub-block decomposition needed",
+  "n_magnets": 28,
+  "outer_radius_mm": 53.8,
+  "inner_radius_mm": 50.8,
+  "arc_deg": 10.9552,
+  "magnet_axial_mm": 10.0,
+  "n_subblocks": 1,
+  "Br_T": 1.2,
+  "pts_n": 8,
+  "plot_radii_mm": [54, 55, 56, 58, 60, 65, 70],
+  "thd_radii_mm": [54.0, 54.5, 55.0, 55.5, 56.0, 57.0, 58.0, 60.0, 63.0, 67.0, 72.0, 78.0]
+}

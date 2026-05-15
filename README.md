@@ -11,9 +11,9 @@ for three different manufacturing processes:
 
 | Fabrication method | Script | Output format |
 |--------------------|--------|---------------|
-| **Laser cutter** | `scripts/generate_laser.py` | SVG |
-| **CNC mill** | `scripts/generate_cnc.py` | DXF (R12) |
-| **3-D printer** | `scripts/generate_3d.py` | OpenSCAD (`.scad`) |
+| **Laser cutter** | `scripts/cad/generate_laser.py` | SVG |
+| **CNC mill** | `scripts/cad/generate_cnc.py` | DXF (R12) |
+| **3-D printer** | `scripts/cad/generate_3d.py` | OpenSCAD (`.scad`) |
 
 All scripts share a common geometry core (`scripts/common.py`) and accept the
 same magnet-dimension and pole-count parameters, so you can swap fabrication
@@ -23,14 +23,21 @@ methods without re-calculating anything.
 
 ## Contents
 
-```
+```raw
 encoder-wheel/
 ├── scripts/
-│   ├── common.py                   shared geometry calculations
-│   ├── generate_laser.py           → SVG for laser cutting
-│   ├── generate_cnc.py             → DXF for CNC milling
-│   ├── generate_3d.py              → OpenSCAD for 3-D printing
-│   └── generate_half_ring_docs.py  → SVG design-reference documentation
+│   ├── common.py                       shared geometry calculations
+│   ├── common_config.py                shared config loading
+│   ├── cad/                            CAD fabrication generators
+│   │   ├── generate_laser.py           → SVG for laser cutting
+│   │   ├── generate_cnc.py             → DXF for CNC milling
+│   │   ├── generate_3d.py              → OpenSCAD for 3-D printing
+│   │   └── generate_half_ring_docs.py  → SVG design-reference documentation
+│   └── magnetic/                       magnetic field analysis & validation
+│       ├── magnet.py                   MagnetCorners class & Aharoni formula
+│       ├── test_kj_validation.py       K&J website benchmark (1.6% error)
+│       ├── test_single_magnet_vs_kj.py validation test harness
+│       └── simulation.py               full encoder wheel simulation
 ├── AGENTS.md                       AI-agent-facing design notes
 ├── examples/
 │   ├── encoder_wheel_12pole_laser.svg
@@ -43,13 +50,13 @@ encoder-wheel/
 │   ├── encoder_wheel_12pole_3d_frontface.scad
 │   └── encoder_wheel_12pole_3d_steelclip.scad
 └── images/
-    ├── top_view.svg
-    ├── cross_section.svg
-    ├── geometry.svg
+
+    ├── top_view.svg```
+
+    ├── cross_section.svg    └── half_ring_over_magnets_perspective.svg
+
+    ├── geometry.svg    ├── half_ring_over_magnets_top_view.svg
     ├── half_ring_over_magnets_cross_section.svg
-    ├── half_ring_over_magnets_top_view.svg
-    └── half_ring_over_magnets_perspective.svg
-```
 
 ---
 
@@ -78,7 +85,7 @@ python scripts/generate_half_ring_docs.py
 
 Each magnet is a rectangular block:
 
-```
+```raw
   magnet_length  (L)  — radial extent    (default 20 mm)
   magnet_width   (w)  — tangential extent (default  5 mm)
   magnet_thickness(t) — axial extent     (default  2 mm)
@@ -108,7 +115,7 @@ inner corner of the adjacent magnet**.  This means:
 The minimum inner radius is derived by requiring the inner-CW corner of magnet
 *i* to be the same Cartesian point as the inner-CCW corner of magnet *i+1*:
 
-```
+```raw
 r_inner_min = (w / 2) / tan(π / N)
 ```
 

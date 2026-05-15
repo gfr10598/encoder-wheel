@@ -4,12 +4,13 @@
 
 ### Project shape
 
-- This is a **Python generator repository**.  The core fabrication scripts use only the standard library; `scripts/generate_half_ring_3d.py` additionally requires **build123d** (`pip install build123d`).
+- This is a **Python generator repository**.  The core CAD fabrication scripts (`scripts/cad/`) use only the standard library; `scripts/cad/generate_half_ring_3d.py` additionally requires **build123d** (`pip install build123d`). Magnetic field analysis scripts are in `scripts/magnetic/`.
 - The shared geometry core lives in `scripts/common.py`.
 - Fabrication generators live in:
-  - `scripts/generate_laser.py`
-  - `scripts/generate_cnc.py`
-  - `scripts/generate_3d.py`
+  - `scripts/cad/generate_laser.py`
+  - `scripts/cad/generate_cnc.py`
+  - `scripts/cad/generate_3d.py`
+- Magnetic field analysis lives in `scripts/magnetic/`:
 - Documentation SVGs are checked in under `images/`.
 
 ### Working conventions
@@ -26,11 +27,11 @@
 Use lightweight script validation:
 ```bash
 python -m py_compile scripts/*.py
-python scripts/generate_laser.py --output /tmp/encoder_wheel_laser.svg
-python scripts/generate_cnc.py --output /tmp/encoder_wheel_cnc.dxf
-python scripts/generate_3d.py --output /tmp/encoder_wheel_3d.scad
-python scripts/generate_half_ring_docs.py
-conda run -n base python scripts/generate_half_ring_3d.py
+python scripts/cad/generate_laser.py --output /tmp/encoder_wheel_laser.svg
+python scripts/cad/generate_cnc.py --output /tmp/encoder_wheel_cnc.dxf
+python scripts/cad/generate_3d.py --output /tmp/encoder_wheel_3d.scad
+python scripts/cad/generate_half_ring_docs.py
+conda run -n base python scripts/cad/generate_half_ring_3d.py
 ```
 
 `python -m unittest discover -v` currently reports **no tests** in this clone, so
@@ -41,7 +42,7 @@ script execution is the main regression check.
 This repository captures the design intent for the printed half ring that snaps
 over the steel backing half ring and its magnet array.  SVG reference diagrams
 are in `images/` and a build123d 3D model exporter lives in
-`scripts/generate_half_ring_3d.py`; run it to produce `examples/half_ring_cover.stl`.
+`scripts/cad/generate_half_ring_3d.py`; run it to produce `examples/half_ring_cover.stl`.
 
 ### Fixed inputs
 
@@ -312,8 +313,8 @@ Encoder wheel tolerances and sensor sensitivity curves should treat By (signal/t
 - This caused the discrete method to show asymmetric peak heights in By
 
 **Solution**:
-1. **`discretize_block()` in analysis_utils.py**: Now computes magnet angle from center position and rotates voxel offsets from magnet-local to global coordinates
-2. **`analytic_rect_prism_B()` in analysis_utils.py**: Now transforms sensor position into magnet-local frame, computes field, and transforms result back to global coordinates
+1. **`discretize_block()` in `scripts/magnetic/analysis_utils.py`**: Now computes magnet angle from center position and rotates voxel offsets from magnet-local to global coordinates
+2. **`analytic_rect_prism_B()` in `scripts/magnetic/analysis_utils.py`**: Now transforms sensor position into magnet-local frame, computes field, and transforms result back to global coordinates
 
 **Verification**:
 - Magnet 58 voxel offsets after angle correction now match magnet 0 offsets exactly (< 1e-14 mm differences)

@@ -24,3 +24,10 @@ venv/
 *.stl
 !examples/*.stl
 /output/
+
+# Generated magnetic plots — keep only amplitude/THD summaries
+scripts/magnetic/*/*.png
+!scripts/magnetic/*/*amplitude_thd.png
+
+# Conversation artifacts
+CONVERSATION_HISTORY.md

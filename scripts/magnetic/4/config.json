@@ -1,0 +1,15 @@
+{
+  "_comment": "4-magnet symmetric cross configuration",
+  "magnet_dims_mm": [10.0, 5.0, 1.0],
+  "radius_mm": 10.0,
+  "z_center_mm": 0.5,
+  "sensor_radius_mm": 10.0,
+  "heights_mm": [2, 3, 4, 5, 6, 7, 8],
+  "thd_heights_mm": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0],
+  "magnets": [
+    {"theta_deg":   0.0, "Br_T": -1.45},
+    {"theta_deg":  90.0, "Br_T":  1.45},
+    {"theta_deg": 180.0, "Br_T": -1.45},
+    {"theta_deg": 270.0, "Br_T":  1.45}
+  ]
+}

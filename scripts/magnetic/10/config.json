@@ -1,0 +1,16 @@
+{
+  "_comment": "10-magnet ring, Apex MMOT32206 arc magnets (32mm OD x 20mm ID x 36deg x 6mm axial)",
+  "_source": "https://www.apexmagnets.com/magnets/neodymium-arc-magnets-32mm-x-20mm-x-6mm-l-neodymium-magnet",
+  "_grade": "N45H, Br~1.35T, radially magnetized",
+  "_geometry": "OD=32mm->outer_r=16mm, ID=20mm->inner_r=10mm, center_r=13mm; arc=36deg; axial=6mm; 10 magnets alternating N/S",
+  "n_magnets": 10,
+  "outer_radius_mm": 16.0,
+  "inner_radius_mm": 10.0,
+  "arc_deg": 36.0,
+  "magnet_axial_mm": 6.0,
+  "n_subblocks": 8,
+  "Br_T": 1.35,
+  "sweep_deg": 144.0,
+  "plot_radii_mm": [17, 18, 19, 20, 22, 25, 30],
+  "thd_radii_mm": [17.0, 17.5, 18.0, 18.5, 19.0, 20.0, 21.0, 22.0, 24.0, 26.0, 28.0, 30.0]
+}

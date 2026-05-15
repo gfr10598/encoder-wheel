@@ -1,0 +1,12 @@
+{
+  "_comment": "8-magnet ring, 20x5x2mm magnets, 2mm gap at inner edge between neighbours",
+  "_geometry": "arc pitch at inner radius (R-10) = 7mm -> R = 10 + 28/pi = 18.913mm; outer_radius = R + 10 = 28.913mm",
+  "n_magnets": 8,
+  "outer_radius_mm": 28.913,
+  "magnet_dims_mm": [20.0, 5.0, 2.0],
+  "sensor_radius_mm": 18.913,
+  "Br_T": 1.45,
+  "sweep_deg": 180.0,
+  "plot_heights_mm": [1, 2, 3, 4, 5, 6, 8, 10],
+  "thd_heights_mm": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0]
+}

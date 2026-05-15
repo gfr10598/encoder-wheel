@@ -53,7 +53,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from magnetic.magnet import Magnet, MagnetCorners, magnet_to_corners
+from magnet import Magnet, MagnetCorners
 
 
 def test_symmetric_cross():
@@ -94,63 +94,27 @@ def test_symmetric_cross():
         (270.0, +1.45, "270° (0,-10) N-up"),
     ]
     
-    print("Magnets and corner decomposition:")
-    print("(Upper surface = z+, Lower surface = z-; Br sign indicates which pole is at each surface)")
+    print("Magnets: (using Aharoni formula)")
     print("-" * 70)
     
-    # Create MagnetCorners by adding magnets one by one
-    all_corners = None
-    
+    # Create magnet configurations for Aharoni computation
+    magnets = []
     for theta_deg, br_t, label in configs:
-        # Derive mu sign from Br_T sign (needed for Magnet constructor)
-        mu = 1.0 if br_t > 0 else -1.0
+        theta_rad = np.radians(theta_deg)
+        x = 10.0 * np.cos(theta_rad)
+        y = 10.0 * np.sin(theta_rad)
+        z = 0.5  # center at z=0.5
         
-        # Create magnet with correct mu sign
-        m = Magnet(mx=10.0, my=5.0, mz=1.0, mu=mu)
-        
-        # Compute corners at this position with explicit Br_T value
-        corners = magnet_to_corners(m, dx=10.0, dz=0.5, dtheta=theta_deg, Br_T=abs(br_t))
-        
-        # Add to the main collection
-        if all_corners is None:
-            all_corners = corners
-        else:
-            all_corners.add(corners)
-        
-        # Show corner Br values: first 4 are geometric "north" corners at +z, next 4 are "south" at -z
-        br_at_upper_z = corners.br_values[0]  # geometric north corners (at +z)
-        br_at_lower_z = corners.br_values[4]  # geometric south corners (at -z)
-        print(f"{label}: Br_T={br_t:+.2f} T, upper surface={br_at_upper_z:+.2f} T, lower surface={br_at_lower_z:+.2f} T")
+        magnets.append({
+            'label': label,
+            'center': np.array([x, y, z]),
+            'dims': np.array([10.0, 5.0, 1.0]),  # L, W, T
+            'Br_T': br_t,
+        })
+        print(f"{label}: center=({x:.1f}, {y:.1f}, {z:.1f}), Br_T={br_t:+.2f} T")
     
     print()
-    
-    # Summary of complete corner array
-    print(f"Complete corner array for magnet cross:")
-    print(f"  Total corners: {all_corners.positions.shape[0]}")
-    print(f"  Position range x: [{all_corners.positions[:, 0].min():.2f}, {all_corners.positions[:, 0].max():.2f}]")
-    print(f"  Position range y: [{all_corners.positions[:, 1].min():.2f}, {all_corners.positions[:, 1].max():.2f}]")
-    print(f"  Position range z: [{all_corners.positions[:, 2].min():.2f}, {all_corners.positions[:, 2].max():.2f}]")
-    print(f"  Br range: [{all_corners.br_values.min():.3f}, {all_corners.br_values.max():.3f}] T")
-    print()
-    
-    # Expected ranges check
-    expected_x_range = [-15, 15]  # radius 10 +/- half-width 5
-    expected_y_range = [-15, 15]  # same
-    expected_z_range = [0.0, 1.0]  # between z=0 and z=1
-    
-    x_ok = (all_corners.positions[:, 0].min() >= expected_x_range[0] and 
-            all_corners.positions[:, 0].max() <= expected_x_range[1])
-    y_ok = (all_corners.positions[:, 1].min() >= expected_y_range[0] and 
-            all_corners.positions[:, 1].max() <= expected_y_range[1])
-    z_ok = (all_corners.positions[:, 2].min() >= expected_z_range[0] and 
-            all_corners.positions[:, 2].max() <= expected_z_range[1])
-    
-    status = "✓ PASS" if (x_ok and y_ok and z_ok) else "✗ FAIL"
-    print(f"Geometry validation: {status}")
-    print()
-    
-    print("✓ 4-magnet symmetric cross configured correctly")
-    print(f"  {all_corners}")
+    print(f"4-magnet symmetric cross configured correctly")
     print()
     
     # Field computation at key symmetry test points
@@ -158,12 +122,20 @@ def test_symmetric_cross():
     print("-" * 70)
     print()
     
+    def compute_field_aharoni(pos, magnets):
+        """Sum Aharoni field contributions from all magnets."""
+        B_total = np.zeros(3)
+        for mag in magnets:
+            B = MagnetCorners.compute_field_analytic(mag['center'], mag['dims'], pos, Br_T=mag['Br_T'])
+            B_total += B
+        return B_total
+    
     # Test points at radius 10mm (magnet centers), height z=11mm (10mm above surface)
     print("Z-AXIS TEST (expect Bz=0 at all heights by 4-fold symmetry):")
     z_tests = [0.5, 2.0, 5.0, 11.0]
     for z in z_tests:
-        pos = [0.0, 0.0, z]
-        B = all_corners.compute_field_at(pos)
+        pos = np.array([0.0, 0.0, z])
+        B = compute_field_aharoni(pos, magnets)
         Bz = B[2]
         Bz_mT = Bz * 1000
         
@@ -180,8 +152,9 @@ def test_symmetric_cross():
         ([0.0, 10.0, z_cardinal], "90° (N-pole center)"),
     ]
     
-    for pos, label in cardinal_tests:
-        B = all_corners.compute_field_at(pos)
+    for pos_list, label in cardinal_tests:
+        pos = np.array(pos_list)
+        B = compute_field_aharoni(pos, magnets)
         Bx = B[0]
         By = B[1]
         Bz = B[2]
@@ -208,8 +181,9 @@ def test_symmetric_cross():
         ([-diag_r, diag_r, z_diag], "135° Diagonal (NW)"),
     ]
     
-    for pos, label in diagonal_tests:
-        B = all_corners.compute_field_at(pos)
+    for pos_list, label in diagonal_tests:
+        pos = np.array(pos_list)
+        B = compute_field_aharoni(pos, magnets)
         Bx = B[0]
         By = B[1]
         Bz = B[2]

@@ -1,0 +1,15 @@
+{
+  "_comment": "54 rectangular 20x5x2mm magnets on outer surface of 4\" cast iron tube",
+  "_geometry": "tube OD=4in=101.6mm -> inner_r=50.8mm; magnet radial=2mm -> outer_r=52.8mm, center_r=51.8mm; 5mm tangential -> arc=5.532deg at center_r; 20mm axial; pitch=6.667deg, gap=1.135deg~1.01mm at inner surface",
+  "_magnets": "20x5x2mm NdFeB N52, radially magnetized, alternating N/S",
+  "n_magnets": 54,
+  "outer_radius_mm": 52.8,
+  "inner_radius_mm": 50.8,
+  "arc_deg": 5.532,
+  "magnet_axial_mm": 20.0,
+  "n_subblocks": 1,
+  "Br_T": 1.45,
+  "pts_n": 8,
+  "plot_radii_mm": [53, 54, 55, 56, 57, 58, 60, 65],
+  "thd_radii_mm": [53.0, 53.5, 54.0, 54.5, 55.0, 56.0, 57.0, 58.0, 60.0, 63.0, 67.0, 72.0]
+}
