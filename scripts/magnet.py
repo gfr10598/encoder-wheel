@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Magnet object and magnet array representation.
+Magnet object: raw geometry and magnetization only.
 
 Convention:
   - mx: radial dimension (long axis, points outward from disk center)
   - my: tangential dimension (short axis, perpendicular to radius)
   - mz: thickness (vertical, perpendicular to disk plane)
-  - Poles are at z = ±mz/2
+  - mu: magnetization (positive for north-up, negative for south-up)
   - my < mx always
 """
 
@@ -16,168 +16,380 @@ import math
 
 class Magnet:
     """
-    A rectangular magnet with fixed dimensions and orientation.
+    A rectangular magnet defined by dimensions and magnetization only.
     
     Attributes:
         mx, my, mz (float): dimensions in mm
-        center (np.array): [x, y, z] center position in mm (global frame)
-        polarity (int): +1 for north-up, -1 for south-up
-        theta_deg (float): angle in degrees (0-360)
+        mu (float): magnetization (positive or negative)
     """
     
-    def __init__(self, mx, my, mz, center_mm, polarity=1, theta_deg=0):
+    def __init__(self, mx, my, mz, mu):
         """
         Args:
             mx (float): radial dimension (mm)
             my (float): tangential dimension (mm)
             mz (float): thickness (mm)
-            center_mm (tuple or array): [x, y, z] center in mm
-            polarity (int): +1 or -1
-            theta_deg (float): angle in degrees
+            mu (float): magnetization (positive or negative)
         """
         assert my < mx, f"my ({my}) must be < mx ({mx})"
-        assert polarity in [1, -1], "polarity must be ±1"
         
         self.mx = float(mx)
         self.my = float(my)
         self.mz = float(mz)
-        self.center = np.array(center_mm, dtype=float)
-        self.polarity = int(polarity)
-        self.theta_deg = float(theta_deg)
-    
-    @property
-    def dims_mm(self):
-        """Return [mx, my, mz] dimensions."""
-        return np.array([self.mx, self.my, self.mz])
-    
-    @property
-    def theta_rad(self):
-        """Return angle in radians."""
-        return math.radians(self.theta_deg)
-    
-    @property
-    def radius_mm(self):
-        """Return radial distance from disk center to magnet center."""
-        return np.linalg.norm(self.center[:2])
-    
-    @property
-    def z_min(self):
-        """Return minimum z coordinate (lower surface)."""
-        return self.center[2] - self.mz / 2.0
-    
-    @property
-    def z_max(self):
-        """Return maximum z coordinate (upper surface)."""
-        return self.center[2] + self.mz / 2.0
-    
-    @property
-    def r_inner(self):
-        """Return inner radial edge (toward disk center)."""
-        return self.radius_mm - self.mx / 2.0
-    
-    @property
-    def r_outer(self):
-        """Return outer radial edge (away from disk center)."""
-        return self.radius_mm + self.mx / 2.0
+        self.mu = float(mu)
     
     def __repr__(self):
-        r = self.radius_mm
-        return (f"Magnet(mx={self.mx}, my={self.my}, mz={self.mz}, "
-                f"r={r:.2f}, θ={self.theta_deg:.1f}°, "
-                f"pos={self.center}, pol={self.polarity:+d})")
+        return f"Magnet(mx={self.mx}, my={self.my}, mz={self.mz}, mu={self.mu:+.2f})"
+
+def north_corners(magnet, radial_offset_mm, theta_deg):
+    """Get 4 corners of the north pole surface.
+    
+    Args:
+        magnet (Magnet): magnet geometry and magnetization
+        radial_offset_mm (float): radial (x-direction) offset in mm
+        theta_deg (float): rotation angle in degrees
+    
+    Returns:
+        (4, 3) array of corner positions [x, y, z] for north pole.
+    """
+    dx = magnet.mx / 2.0
+    dy = magnet.my / 2.0
+    dz = magnet.mz / 2.0
+    
+    # North pole always at +z; mu sign handled in magnet_to_corners
+    z_pole = dz
+    
+    # Corners in magnet-local frame
+    corners_local = np.array([
+        [radial_offset_mm-dx, -dy, z_pole],
+        [radial_offset_mm+dx, -dy, z_pole],
+        [radial_offset_mm+dx, +dy, z_pole],
+        [radial_offset_mm-dx, +dy, z_pole],
+    ])
+    
+    # Apply rotation around z-axis
+    theta_rad = math.radians(theta_deg)
+    cos_t = np.cos(theta_rad)
+    sin_t = np.sin(theta_rad)
+    
+    x_rot = corners_local[:, 0] * cos_t - corners_local[:, 1] * sin_t
+    y_rot = corners_local[:, 0] * sin_t + corners_local[:, 1] * cos_t
+    z_rot = corners_local[:, 2]
+    
+    corners= np.column_stack([x_rot, y_rot, z_rot])
+    
+    return corners
+
+
+def south_corners(magnet, radial_offset_mm, theta_deg):
+    """Get 4 corners of the south pole surface.
+    
+    Args:
+        magnet (Magnet): magnet geometry and magnetization
+        radial_offset_mm (float): radial (x-direction) offset in mm
+        theta_deg (float): rotation angle in degrees
+    
+    Returns:
+        (4, 3) array of corner positions [x, y, z] for south pole.
+    """
+    dx = magnet.mx / 2.0
+    dy = magnet.my / 2.0
+    dz = magnet.mz / 2.0
+    
+    # South pole always at -z; mu sign handled in magnet_to_corners
+    z_pole = -dz
+    
+    # Corners in magnet-local frame
+    corners_local = np.array([
+        [radial_offset_mm-dx, -dy, z_pole],
+        [radial_offset_mm+dx, -dy, z_pole],
+        [radial_offset_mm+dx, +dy, z_pole],
+        [radial_offset_mm-dx, +dy, z_pole],
+    ])
+    
+    # Apply rotation around z-axis
+    theta_rad = math.radians(theta_deg)
+    cos_t = np.cos(theta_rad)
+    sin_t = np.sin(theta_rad)
+    
+    x_rot = corners_local[:, 0] * cos_t - corners_local[:, 1] * sin_t
+    y_rot = corners_local[:, 0] * sin_t + corners_local[:, 1] * cos_t
+    z_rot = corners_local[:, 2]
+    
+    corners= np.column_stack([x_rot, y_rot, z_rot])
+    
+    return corners
+
+
+def positioned_corners(magnet, dx, dz, dtheta):
+    """
+    Transform a magnet's corners by translation and rotation.
+    
+    Transform sequence:
+      1. Offset corners in x (radial) by dx
+      2. Rotate corners around z-axis by dtheta degrees
+      3. Offset corners in z by dz
+      4. Return transformed north and south corner arrays
+    
+    Args:
+        magnet (Magnet): magnet geometry and magnetization
+        dx (float): radial (x-direction) translation in mm
+        dz (float): vertical (z-direction) translation in mm
+        dtheta (float): rotation angle around z-axis in degrees
+    
+    Returns:
+        (north_corners, south_corners): two (4, 3) arrays
+    """
+    # Get corners at origin with zero rotation
+    nc = north_corners(magnet, 0.0, 0.0)
+    sc = south_corners(magnet, 0.0, 0.0)
+    
+    # Step 1: Offset in x (radial direction)
+    nc = nc + np.array([dx, 0.0, 0.0])
+    sc = sc + np.array([dx, 0.0, 0.0])
+    
+    # Step 2: Rotate around z-axis by dtheta
+    theta_rad = math.radians(dtheta)
+    cos_t = math.cos(theta_rad)
+    sin_t = math.sin(theta_rad)
+    
+    rotation_matrix = np.array([
+        [cos_t, -sin_t, 0.0],
+        [sin_t,  cos_t, 0.0],
+        [0.0,    0.0,   1.0]
+    ])
+    
+    nc = nc @ rotation_matrix.T
+    sc = sc @ rotation_matrix.T
+    
+    # Step 3: Offset in z (vertical direction)
+    nc = nc + np.array([0.0, 0.0, dz])
+    sc = sc + np.array([0.0, 0.0, dz])
+    
+    return nc, sc
+
+
+
+
+class MagnetCorners:
+    """All corners (north, south, and optional reflections) with magnetization values.
+    
+    Stores corner positions and their corresponding magnetization values.
+    Provides method to compute magnetic field at a point in space.
+    
+    Can represent:
+    - A single magnet (8 corners: 4 north, 4 south)
+    - A single magnet with reflections (16 corners: original + image)
+    - An array of magnets (N*8 or N*16 corners)
+    """
+    
+    def __init__(self, positions, mu_values):
+        """
+        Args:
+            positions: (N_corners, 3) array of [x, y, z] positions (mm)
+            mu_values: (N_corners,) array of magnetization values
+                      North pole corners: +mu
+                      South pole corners: -mu (inverted)
+                      Image corners: scaled version of above
+        """
+        self.positions = np.asarray(positions, dtype=float)  # (N_corners, 3)
+        self.mu_values = np.asarray(mu_values, dtype=float)   # (N_corners,)
+        
+        assert self.positions.shape[0] == self.mu_values.shape[0], \
+            f"positions ({self.positions.shape[0]}) and mu_values ({self.mu_values.shape[0]}) must match"
+    
+    def __repr__(self):
+        return f"MagnetCorners(corners={self.positions.shape[0]}, mu_range=[{self.mu_values.min():.3f}, {self.mu_values.max():.3f}])"
     
     @staticmethod
-    def positioned_at_angle(mx, my, mz, theta_deg, polarity=1, 
-                           outer_radius_mm=101.6, z_lower=0.0):
-        """
-        Create a magnet positioned at a given angle with standard placement.
-        
-        Standard placement:
-          - Lower surface at z_lower (default z=0)
-          - Outer radial edge at outer_radius_mm (default 8" OD = 101.6 mm)
-          - Magnet centered on disk (theta, 0) in radial-tangential frame
+    def combine(*corner_sets):
+        """Combine multiple MagnetCorners into one.
         
         Args:
-            mx, my, mz (float): dimensions in mm
-            theta_deg (float): angle around disk in degrees
-            polarity (int): +1 or -1
-            outer_radius_mm (float): outer edge radial position (mm)
-            z_lower (float): lower surface z position (mm)
+            *corner_sets: Variable number of MagnetCorners instances
         
         Returns:
-            Magnet: positioned magnet
+            New MagnetCorners with all corners stacked
         """
-        # Radial position: outer edge minus half of mx
-        radius_mm = outer_radius_mm - mx / 2.0
+        positions_list = [cs.positions for cs in corner_sets]
+        mu_values_list = [cs.mu_values for cs in corner_sets]
         
-        # Z position: lower surface plus half of mz
-        z_center = z_lower + mz / 2.0
+        positions = np.vstack(positions_list)
+        mu_values = np.concatenate(mu_values_list)
         
-        # Convert angle to Cartesian
-        theta_rad = math.radians(theta_deg)
-        x = radius_mm * math.cos(theta_rad)
-        y = radius_mm * math.sin(theta_rad)
-        
-        return Magnet(
-            mx=mx,
-            my=my,
-            mz=mz,
-            center_mm=[x, y, z_center],
-            polarity=polarity,
-            theta_deg=theta_deg
-        )
+        return MagnetCorners(positions, mu_values)
     
-    def rotate_z(self, delta_deg):
-        """
-        Rotate magnet around z-axis by delta_deg degrees.
+    def add(self, other):
+        """Add corners from another MagnetCorners object to this one.
         
-        This is the second transform: rotates magnet position and orientation.
+        Modifies this object in-place.
         
         Args:
-            delta_deg (float): rotation angle in degrees
+            other: Another MagnetCorners instance
+        """
+        self.positions = np.vstack([self.positions, other.positions])
+        self.mu_values = np.concatenate([self.mu_values, other.mu_values])
+    
+    def compute_field_at(self, sensor_pos_mm, Br_T=1.45):
+        """Compute magnetic field at a sensor position.
+        
+        Sums dipole field contributions from all corners.
+        
+        Args:
+            sensor_pos_mm: [x, y, z] sensor position in mm
+            Br_T: Remanent flux density in Tesla
         
         Returns:
-            Magnet: new rotated magnet (original unchanged)
+            [Bx, By, Bz] field in Tesla
         """
-        delta_rad = math.radians(delta_deg)
-        cos_d = math.cos(delta_rad)
-        sin_d = math.sin(delta_rad)
+        sensor_pos_m = np.asarray(sensor_pos_mm) / 1000.0  # convert to meters
         
-        # Rotate center position around z-axis
-        x_new = self.center[0] * cos_d - self.center[1] * sin_d
-        y_new = self.center[0] * sin_d + self.center[1] * cos_d
-        z_new = self.center[2]
+        B_total = np.zeros(3)
         
-        new_center = np.array([x_new, y_new, z_new])
-        new_theta = self.theta_deg + delta_deg
+        for pos_mm, mu in zip(self.positions, self.mu_values):
+            pos_m = pos_mm / 1000.0  # convert to meters
+            
+            # Vector from corner to sensor
+            r_vec = sensor_pos_m - pos_m
+            r_mag = np.linalg.norm(r_vec)
+            
+            if r_mag < 1e-10:
+                # Skip if sensor is at corner position
+                continue
+            
+            # Dipole moment: m = mu * (mu_0 / (4*pi)) * Br * V
+            # For unit volume and normalized field, we use: m = mu * Br
+            mu_0_over_4pi = 1e-7  # SI units
+            m_mag = mu * Br_T  # magnetic moment magnitude
+            
+            # Dipole field: B = (mu_0 / 4*pi) * [3*(m·r_hat)*r_hat - m] / r^3
+            r_hat = r_vec / r_mag
+            
+            # Magnetization direction: mu already encodes sign, moment is always along z
+            m_vec = np.array([0.0, 0.0, mu * Br_T])
+            
+            # 3*(m·r_hat)*r_hat - m
+            m_dot_r_hat = np.dot(m_vec, r_hat)
+            field_unnormalized = 3.0 * m_dot_r_hat * r_hat - m_vec
+            
+            # Scale by mu_0 / (4*pi) / r^3
+            B_mag = mu_0_over_4pi * field_unnormalized / (r_mag ** 3)
+            
+            B_total += B_mag
         
-        # Normalize theta to [0, 360)
-        new_theta = new_theta % 360.0
+        return B_total
+
+
+def magnet_to_corners(magnet, dx, dz, dtheta, include_images=False,
+                      z_steel_surface=0.0, mu_r=5.7):
+    """Create MagnetCorners from a single Magnet.
+    
+    Args:
+        magnet: Magnet object with mx, my, mz, mu
+        dx: Radial (x-direction) offset in mm
+        dz: Vertical (z-direction) offset in mm
+        dtheta: Rotation angle around z-axis in degrees
+        include_images: Whether to add image dipoles for steel backing
+        z_steel_surface: Height of steel surface (mm) for image positioning
+        mu_r: Relative permeability of steel
+    
+    Returns:
+        MagnetCorners with magnet corners and optional reflections
+    """
+    # Get north and south pole corners
+    nc, sc = positioned_corners(magnet, dx, dz, dtheta)
+    
+    # Stack into single array and assign magnetizations
+    positions = np.vstack([nc, sc])  # (8, 3)
+    mu_north = np.full(4, magnet.mu)
+    mu_south = np.full(4, -magnet.mu)  # inverted for south pole
+    mu_values = np.concatenate([mu_north, mu_south])
+    
+    corners = MagnetCorners(positions, mu_values)
+    
+    # Add image dipoles if requested
+    if include_images:
+        # Image scaling factor for steel backing
+        mu_scale = (mu_r - 1.0) / (mu_r + 1.0)
         
-        return Magnet(
-            mx=self.mx,
-            my=self.my,
-            mz=self.mz,
-            center_mm=new_center,
-            polarity=self.polarity,
-            theta_deg=new_theta
-        )
+        # Reflect magnet center z-position across steel surface
+        z_mag_center = dz  # magnet center z position
+        z_image_center = 2 * z_steel_surface - z_mag_center
+        
+        # Reflect north and south corners
+        nc_img = nc.copy()
+        sc_img = sc.copy()
+        
+        # Offset z-coordinates to reflected position
+        z_offset_north = nc[:, 2] - dz  # offset from magnet center
+        z_offset_south = sc[:, 2] - dz
+        
+        nc_img[:, 2] = z_image_center + z_offset_north
+        sc_img[:, 2] = z_image_center + z_offset_south
+        
+        # Create image corners
+        img_positions = np.vstack([nc_img, sc_img])
+        
+        mu_img_north = np.full(4, mu_scale * magnet.mu)
+        mu_img_south = np.full(4, -mu_scale * magnet.mu)
+        
+        img_mu_values = np.concatenate([mu_img_north, mu_img_south])
+        
+        img_corners = MagnetCorners(img_positions, img_mu_values)
+        
+        # Combine original and image corners
+        corners = MagnetCorners.combine(corners, img_corners)
+    
+    return corners
+
+
+def array_to_corners(magnet_array, dx_list, dz_list, dtheta_list,
+                     include_images=False, z_steel_surface=0.0, mu_r=5.7):
+    """Create MagnetCorners from an array of Magnets.
+    
+    Args:
+        magnet_array: Iterable of Magnet objects
+        dx_list: Radial offsets for each magnet (mm)
+        dz_list: Vertical offsets for each magnet (mm)
+        dtheta_list: Rotation angles for each magnet (degrees)
+        include_images: Whether to add image dipoles for each magnet
+        z_steel_surface: Height of steel surface (mm) for image positioning
+        mu_r: Relative permeability of steel
+    
+    Returns:
+        MagnetCorners with all magnets' corners combined
+    """
+    corner_sets = []
+    
+    for magnet, dx, dz, dtheta in zip(magnet_array, dx_list, dz_list, dtheta_list):
+        corners = magnet_to_corners(magnet, dx, dz, dtheta,
+                                   include_images=include_images,
+                                   z_steel_surface=z_steel_surface,
+                                   mu_r=mu_r)
+        corner_sets.append(corners)
+    
+    return MagnetCorners.combine(*corner_sets)
+
+
+def magnet_corners_with_reflections(magnet, dx, dz, dtheta,
+                                     include_images=False,
+                                     z_steel_surface=0.0,
+                                     mu_r=5.7):
+    """Legacy alias for magnet_to_corners().
+    
+    Deprecated: Use magnet_to_corners() instead.
+    """
+    return magnet_to_corners(magnet, dx, dz, dtheta,
+                            include_images=include_images,
+                            z_steel_surface=z_steel_surface,
+                            mu_r=mu_r)
+
 
 
 class MagnetArray:
-    """
-    Array of magnets arranged in a ring.
-    
-    Attributes:
-        magnets (list): list of Magnet objects
-        n_magnets (int): number of magnets
-    """
+    """Array of magnets."""
     
     def __init__(self, magnets=None):
-        """
-        Args:
-            magnets (list): list of Magnet objects
-        """
         self.magnets = magnets if magnets is not None else []
     
     def __len__(self):
@@ -190,187 +402,4 @@ class MagnetArray:
         return iter(self.magnets)
     
     def append(self, magnet):
-        """Add a magnet to the array."""
         self.magnets.append(magnet)
-    
-    @staticmethod
-    def create_uniform_ring(n_magnets, mx, my, mz, outer_radius_mm=101.6, 
-                           z_lower=0.0, alternating_polarity=True):
-        """
-        Create a uniform ring of magnets with standard positioning.
-        
-        Standard positioning:
-          - Lower surface at z_lower (default 0.0 mm)
-          - Outer radial edge at outer_radius_mm (default 101.6 mm for 8" OD)
-          - Magnets evenly spaced around disk (angular pitch = 360/n)
-          - Optionally alternating polarity (N-S-N-S)
-        
-        Args:
-            n_magnets (int): number of magnets (e.g., 60)
-            mx, my, mz (float): magnet dimensions in mm
-            outer_radius_mm (float): outer edge radial position (mm)
-            z_lower (float): lower surface z position (mm)
-            alternating_polarity (bool): whether to alternate polarity
-        
-        Returns:
-            MagnetArray: uniform ring
-        """
-        array = MagnetArray()
-        angular_pitch = 360.0 / n_magnets
-        
-        for i in range(n_magnets):
-            theta_deg = i * angular_pitch
-            
-            # Alternating polarity (N-S-N-S pattern)
-            polarity = 1 if (i % 2 == 0) else -1 if alternating_polarity else 1
-            
-            magnet = Magnet.positioned_at_angle(
-                mx=mx,
-                my=my,
-                mz=mz,
-                theta_deg=theta_deg,
-                polarity=polarity,
-                outer_radius_mm=outer_radius_mm,
-                z_lower=z_lower
-            )
-            array.append(magnet)
-        
-        return array
-    
-    def summary(self):
-        """Print summary of array."""
-        if len(self.magnets) == 0:
-            print("Empty magnet array")
-            return
-        
-        print(f"Magnet Array: {len(self.magnets)} magnets")
-        m0 = self.magnets[0]
-        print(f"  Dimensions: {m0.mx} × {m0.my} × {m0.mz} mm")
-        print(f"  Radius: {m0.radius_mm:.2f} mm")
-        
-        if len(self.magnets) > 1:
-            angular_pitch = 360.0 / len(self.magnets)
-            print(f"  Angular pitch: {angular_pitch:.2f}°")
-        
-        # Count polarity
-        n_pos = sum(1 for m in self.magnets if m.polarity > 0)
-        n_neg = sum(1 for m in self.magnets if m.polarity < 0)
-        print(f"  Polarity: {n_pos} north-up, {n_neg} south-up")
-
-
-def main():
-    """Test magnet and array objects."""
-    print("=" * 100)
-    print("Magnet Object Test")
-    print("=" * 100)
-    
-    # Single magnet at origin
-    m = Magnet(mx=20.0, my=8.0, mz=1.5, center_mm=[0, 0, 0.75])
-    print(f"\n{m}")
-    print(f"  Dims: {m.dims_mm}")
-    print(f"  Edges: r_inner={m.r_inner:.2f}, r_outer={m.r_outer:.2f}")
-    print(f"  Z: z_min={m.z_min:.2f}, z_max={m.z_max:.2f}")
-    
-    # Test Transform 1: Position at angle with standard placement
-    print("\n" + "=" * 100)
-    print("Transform 1: Position at angle (outer edge at 8\" OD, lower surface at z=0)")
-    print("=" * 100)
-    
-    m_pos = Magnet.positioned_at_angle(
-        mx=20.0, my=8.0, mz=1.5,
-        theta_deg=0.0,
-        polarity=1,
-        outer_radius_mm=101.6,
-        z_lower=0.0
-    )
-    print(f"\nAt θ=0°:")
-    print(f"  {m_pos}")
-    print(f"  Center: {m_pos.center}")
-    print(f"  Edges: r_inner={m_pos.r_inner:.2f}, r_outer={m_pos.r_outer:.2f}")
-    print(f"  Z: z_min={m_pos.z_min:.2f}, z_max={m_pos.z_max:.2f}")
-    
-    # Test Transform 2: Rotate z-axis
-    print("\n" + "=" * 100)
-    print("Transform 2: Rotate around z-axis by 6°")
-    print("=" * 100)
-    
-    m_rotated = m_pos.rotate_z(6.0)
-    print(f"\nAfter rotating by 6°:")
-    print(f"  {m_rotated}")
-    print(f"  Center: {m_rotated.center}")
-    print(f"  Radius: {m_rotated.radius_mm:.4f} (should be same)")
-    print(f"  Edges: r_inner={m_rotated.r_inner:.2f}, r_outer={m_rotated.r_outer:.2f}")
-    print(f"  Z: z_min={m_rotated.z_min:.2f}, z_max={m_rotated.z_max:.2f}")
-    
-    # Verify rotation preserves radius
-    print(f"\nRadius preservation check:")
-    print(f"  Original: {m_pos.radius_mm:.10f}")
-    print(f"  Rotated:  {m_rotated.radius_mm:.10f}")
-    print(f"  Difference: {abs(m_pos.radius_mm - m_rotated.radius_mm):.2e} mm")
-    
-    # Create uniform ring using standard positioning
-    print("\n" + "=" * 100)
-    print("Uniform Ring Array (60 magnets)")
-    print("=" * 100)
-    
-    array = MagnetArray.create_uniform_ring(
-        n_magnets=60,
-        mx=20.0,
-        my=8.0,
-        mz=1.5,
-        outer_radius_mm=101.6,
-        z_lower=0.0
-    )
-    array.summary()
-    
-    # Show first few magnets
-    print("\nFirst 5 magnets:")
-    for i in range(min(5, len(array))):
-        print(f"  [{i}] θ={array[i].theta_deg:6.1f}°, r_outer={array[i].r_outer:7.2f}, "
-              f"pol={array[i].polarity:+d}")
-    
-    # Verify geometry
-    print("\n" + "=" * 100)
-    print("Geometry Verification")
-    print("=" * 100)
-    
-    # Check that magnets are evenly spaced
-    angles = [m.theta_deg for m in array]
-    print(f"\nAngle range: {min(angles):.1f}° to {max(angles):.1f}°")
-    
-    # Check outer edge alignment
-    outer_radii = [m.r_outer for m in array]
-    print(f"\nOuter radii (should all be 101.6 mm):")
-    print(f"  Min: {min(outer_radii):.6f} mm")
-    print(f"  Max: {max(outer_radii):.6f} mm")
-    print(f"  Std dev: {np.std(outer_radii):.10f} mm")
-    
-    # Check lower surface alignment
-    z_mins = [m.z_min for m in array]
-    print(f"\nLower surfaces (should all be 0.0 mm):")
-    print(f"  Min: {min(z_mins):.10f} mm")
-    print(f"  Max: {max(z_mins):.10f} mm")
-    print(f"  Std dev: {np.std(z_mins):.10f} mm")
-    
-    # Test rotation of array
-    print("\n" + "=" * 100)
-    print("Test: Rotate entire array by 3°")
-    print("=" * 100)
-    
-    array_rot = MagnetArray([m.rotate_z(3.0) for m in array])
-    
-    print(f"\nBefore rotation - first magnet:")
-    print(f"  {array[0]}")
-    print(f"After rotation - first magnet:")
-    print(f"  {array_rot[0]}")
-    
-    # Verify outer edges still aligned
-    outer_radii_rot = [m.r_outer for m in array_rot]
-    print(f"\nOuter radii after rotation (should still be 101.6 mm):")
-    print(f"  Min: {min(outer_radii_rot):.6f} mm")
-    print(f"  Max: {max(outer_radii_rot):.6f} mm")
-    print(f"  Std dev: {np.std(outer_radii_rot):.10f} mm")
-
-
-if __name__ == "__main__":
-    main()
