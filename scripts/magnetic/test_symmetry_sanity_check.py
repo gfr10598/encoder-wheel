@@ -53,7 +53,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from magnet import Magnet, MagnetCorners, magnet_to_corners
+from magnetic.magnet import Magnet, MagnetCorners, magnet_to_corners
 
 
 def test_symmetric_cross():

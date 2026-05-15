@@ -5,9 +5,10 @@ Uses the Aharoni rectangular prism formula via MagnetCorners class.
 """
 
 import sys
-sys.path.insert(0, '/Users/gfr/dev/encoder-wheel/scripts')
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from magnet import MagnetCorners
+from magnetic.magnet import MagnetCorners
 import numpy as np
 
 

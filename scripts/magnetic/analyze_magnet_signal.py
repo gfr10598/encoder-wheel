@@ -5,9 +5,15 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-sys.path.insert(0, os.path.dirname(__file__))
-from analysis_utils import compute_field_from_magnets
-from coords import cyl_to_cart
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from magnetic.analysis_utils import compute_field_from_magnets
+try:
+    from coords import cyl_to_cart
+except ImportError:
+    # coords module missing - define locally if needed
+    def cyl_to_cart(r, theta, z):
+        import math
+        return (r * math.cos(theta), r * math.sin(theta), z)
 from common_config import load_config, validate_config
 
 def build_ring_config(n_magnets, r_inner, magnet_dims, Br=1.45):

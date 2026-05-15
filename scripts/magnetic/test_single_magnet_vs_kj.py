@@ -9,9 +9,10 @@ Test setup:
 """
 
 import sys
-sys.path.insert(0, '/Users/gfr/dev/encoder-wheel/scripts')
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from magnet import MagnetCorners
+from magnetic.magnet import MagnetCorners
 import numpy as np
 
 def test_single_n52_magnet():

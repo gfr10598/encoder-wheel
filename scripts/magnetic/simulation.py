@@ -11,8 +11,8 @@ from typing import Tuple, Dict
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
-from magnet import MagnetArray
-from sensor import Sensor
+from magnetic.magnet import MagnetArray
+from magnetic.sensor import Sensor
 from field import compute_field
 
 
