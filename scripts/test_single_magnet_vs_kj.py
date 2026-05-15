@@ -3,72 +3,52 @@
 Single magnet validation test: compare calculated field against K&J website result.
 
 Test setup:
-- Single N52 magnet: 20×8×1.5 mm
+- Single N52 magnet: 10×5×1 mm
 - Measurement point: 10 mm directly above N pole (at height = magnet_top + 10mm)
 - Expected result (K&J website): 79 gauss
 """
 
 import sys
-import numpy as np
-
-# Add scripts directory to path for imports
 sys.path.insert(0, '/Users/gfr/dev/encoder-wheel/scripts')
 
-from analysis_utils import analytic_rect_prism_B
+from magnet import MagnetCorners
+import numpy as np
 
 def test_single_n52_magnet():
     """
     Validate single N52 magnet field calculation against K&J website.
     """
     print("=" * 75)
-    print("SINGLE MAGNET VALIDATION TEST")
+    print("SINGLE MAGNET VALIDATION TEST (K&J REFERENCE)")
     print("=" * 75)
     print()
     
-    # N52 magnet parameters
-    magnet_length = 20.0  # mm, radial extent
-    magnet_width = 8.0    # mm, tangential extent
-    magnet_height = 1.5   # mm, vertical extent
-    
-    # Magnet positioned at center (0, 0), N pole facing up
-    # Center at z = 0.75 mm (half height)
-    magnet_center_mm = [0.0, 0.0, magnet_height / 2]
-    magnet_dims_mm = [magnet_length, magnet_width, magnet_height]
-    
-    # Magnetization axis: +Z (north pole up)
-    axis = [0, 0, 1]
+    # N52 magnet parameters: 10×5×1 mm
+    magnet_dims_mm = [10.0, 5.0, 1.0]  # [L, W, H] in mm
+    magnet_center_mm = [0.0, 0.0, magnet_dims_mm[2] / 2]
     
     print("Magnet Configuration:")
-    print(f"  Dimensions: {magnet_length} × {magnet_width} × {magnet_height} mm (L×W×H)")
+    print(f"  Dimensions: {magnet_dims_mm[0]} × {magnet_dims_mm[1]} × {magnet_dims_mm[2]} mm (L×W×H)")
     print(f"  Material: N52 (Br = 1.45 T)")
-    print(f"  Center position: (0, 0, {magnet_height/2}) mm")
+    print(f"  Center position: (0, 0, {magnet_center_mm[2]}) mm")
     print(f"  Orientation: N pole facing UP (+Z)")
     print()
     
     # Measurement point: 10 mm directly above N pole
-    # N pole surface is at z = magnet_height = 1.5 mm
-    # Sensor is at z = 1.5 + 10.0 = 11.5 mm
-    measurement_height = magnet_height + 10.0
-    measurement_point = [0.0, 0.0, measurement_height]
+    sensor_z_mm = magnet_dims_mm[2] + 10.0
+    sensor_pos_mm = [0.0, 0.0, sensor_z_mm]
     
     print(f"Measurement Point:")
-    print(f"  Location: (0, 0, {measurement_height}) mm")
+    print(f"  Location: (0, 0, {sensor_z_mm}) mm")
     print(f"  Distance above N pole: 10 mm")
     print()
     
-    # Compute field using analytic rectangular prism formula
-    B_field = analytic_rect_prism_B(magnet_center_mm, magnet_dims_mm, axis, measurement_point, Br=1.45)
+    # Compute field using Aharoni formula via MagnetCorners
+    B_field = MagnetCorners.compute_field_analytic(magnet_center_mm, magnet_dims_mm, sensor_pos_mm, Br_T=1.45)
     
-    Bx = B_field[0]
-    By = B_field[1]
-    Bz = B_field[2]
-    
-    # Convert to Gauss (1 T = 10,000 Gauss)
-    Bx_gauss = Bx * 10000
-    By_gauss = By * 10000
-    Bz_gauss = Bz * 10000
-    
-    # Total field magnitude
+    Bx_gauss = B_field[0] * 10000
+    By_gauss = B_field[1] * 10000
+    Bz_gauss = B_field[2] * 10000
     B_total_gauss = np.sqrt(Bx_gauss**2 + By_gauss**2 + Bz_gauss**2)
     
     print("Field Components:")
@@ -77,9 +57,6 @@ def test_single_n52_magnet():
     print(f"  Bz (perpendicular):{Bz_gauss:>10.2f} Gauss")
     print(f"  |B| (total):       {B_total_gauss:>10.2f} Gauss")
     print()
-    
-    # Since magnet is centered and measurement is directly above, Bx and By should be ~0
-    # Bz should be the dominant component (N pole field pointing up)
     
     print("Validation:")
     print(f"  K&J Website Result: 79 Gauss")
