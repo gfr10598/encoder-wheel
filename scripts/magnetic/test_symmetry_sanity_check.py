@@ -12,7 +12,7 @@ Coordinate system:
 Setup:
   - 4 magnets at θ = 0°, 90°, 180°, 270° (cardinal directions)
   - All centered at radius = 10 mm, axial height z = 0.5 mm (center)
-  - Magnetizations: mu > 0 (N-up), mu < 0 (N-down), mu > 0 (N-up), mu < 0 (N-down)
+  - Remanent flux density (Br_T): -1.45 T (N-down), +1.45 T (N-up), -1.45 T (N-down), +1.45 T (N-up)
   - Dimensions: 10 × 5 × 1 mm (radial × tangential × axial/thickness)
   - Lower magnet surface at z = 0.0 mm
   - Upper magnet surface at z = 1.0 mm
@@ -57,13 +57,20 @@ from magnetic.magnet import Magnet, MagnetCorners, magnet_to_corners
 
 
 def test_symmetric_cross():
-    """Test 4-magnet symmetric cross with corrected positioning and magnetizations.
+    """Test 4-magnet symmetric cross with corrected positioning and corner Br_T values.
     
-    Magnets positioned at cardinal angles (0°, 90°, 180°, 270°):
-    - 0°, 180°: mu=-1 (N poles DOWN at z=0, S poles UP at z=1)
-    - 90°, 270°: mu=+1 (N poles UP at z=1, S poles DOWN at z=0)
+    Magnet orientations (all at radius 10mm, center z=0.5mm, lower surface z=0, upper surface z=1):
+    - 0°, 180°: N-down (Br_T=-1.45 T)
+      * North pole points DOWN at z=0 (lower surface)
+      * South pole points UP at z=1 (upper surface)
+      * Geometric north_corners (at +z/upper): Br_T = -1.45 T (south surface)
+      * Geometric south_corners (at -z/lower): Br_T = +1.45 T (north surface)
     
-    All positioned at radius 10mm, vertical center z=0.5mm.
+    - 90°, 270°: N-up (Br_T=+1.45 T)
+      * North pole points UP at z=1 (upper surface)
+      * South pole points DOWN at z=0 (lower surface)
+      * Geometric north_corners (at +z/upper): Br_T = +1.45 T (north surface)
+      * Geometric south_corners (at -z/lower): Br_T = -1.45 T (south surface)
     """
     print("=" * 70)
     print("SANITY CHECK: 4-Magnet Symmetric Cross (Corrected Configuration)")
@@ -72,32 +79,37 @@ def test_symmetric_cross():
     print("Setup:")
     print("  - 4 magnets (10×5×1 mm) positioned at radius 10mm, center at z=0.5mm")
     print("  - Positioned at cardinal angles: 0°, 90°, 180°, 270°")
-    print("  - Magnetizations: mu=-1 (N-down), mu=+1 (N-up), mu=-1 (N-down), mu=+1 (N-up)")
+    print("  - Orientations (Br_T sign indicates N pole direction):")
+    print("    • 0°, 180°: N-down (Br_T=-1.45 T) → upper surface (z=1) is S pole")
+    print("    • 90°, 270°: N-up (Br_T=+1.45 T) → upper surface (z=1) is N pole")
     print()
     
     # Create base magnet geometry
-    magnet_geom = Magnet(mx=10.0, my=5.0, mz=1.0, mu=1.0)  # template
-    
     # Position parameters for each magnet at cardinal angles
+    # Format: (theta_deg, Br_T, label)
     configs = [
-        (0.0, -1.0, "0° (10,0) N-down"),
-        (90.0, +1.0, "90° (0,10) N-up"),
-        (180.0, -1.0, "180° (-10,0) N-down"),
-        (270.0, +1.0, "270° (0,-10) N-up"),
+        (0.0, -1.45, "0° (10,0) N-down"),
+        (90.0, +1.45, "90° (0,10) N-up"),
+        (180.0, -1.45, "180° (-10,0) N-down"),
+        (270.0, +1.45, "270° (0,-10) N-up"),
     ]
     
     print("Magnets and corner decomposition:")
+    print("(Upper surface = z+, Lower surface = z-; Br sign indicates which pole is at each surface)")
     print("-" * 70)
     
     # Create MagnetCorners by adding magnets one by one
     all_corners = None
     
-    for theta_deg, mu, label in configs:
-        # Create magnet with this magnetization
+    for theta_deg, br_t, label in configs:
+        # Derive mu sign from Br_T sign (needed for Magnet constructor)
+        mu = 1.0 if br_t > 0 else -1.0
+        
+        # Create magnet with correct mu sign
         m = Magnet(mx=10.0, my=5.0, mz=1.0, mu=mu)
         
-        # Compute corners at this position
-        corners = magnet_to_corners(m, dx=10.0, dz=0.5, dtheta=theta_deg)
+        # Compute corners at this position with explicit Br_T value
+        corners = magnet_to_corners(m, dx=10.0, dz=0.5, dtheta=theta_deg, Br_T=abs(br_t))
         
         # Add to the main collection
         if all_corners is None:
@@ -105,7 +117,10 @@ def test_symmetric_cross():
         else:
             all_corners.add(corners)
         
-        print(f"{label}: mu={mu:+.1f}, corners shape {corners.positions.shape}")
+        # Show corner Br values: first 4 are geometric "north" corners at +z, next 4 are "south" at -z
+        br_at_upper_z = corners.br_values[0]  # geometric north corners (at +z)
+        br_at_lower_z = corners.br_values[4]  # geometric south corners (at -z)
+        print(f"{label}: Br_T={br_t:+.2f} T, upper surface={br_at_upper_z:+.2f} T, lower surface={br_at_lower_z:+.2f} T")
     
     print()
     
@@ -115,7 +130,7 @@ def test_symmetric_cross():
     print(f"  Position range x: [{all_corners.positions[:, 0].min():.2f}, {all_corners.positions[:, 0].max():.2f}]")
     print(f"  Position range y: [{all_corners.positions[:, 1].min():.2f}, {all_corners.positions[:, 1].max():.2f}]")
     print(f"  Position range z: [{all_corners.positions[:, 2].min():.2f}, {all_corners.positions[:, 2].max():.2f}]")
-    print(f"  Magnetization range: [{all_corners.mu_values.min():.3f}, {all_corners.mu_values.max():.3f}]")
+    print(f"  Br range: [{all_corners.br_values.min():.3f}, {all_corners.br_values.max():.3f}] T")
     print()
     
     # Expected ranges check
@@ -148,7 +163,7 @@ def test_symmetric_cross():
     z_tests = [0.5, 2.0, 5.0, 11.0]
     for z in z_tests:
         pos = [0.0, 0.0, z]
-        B = all_corners.compute_field_at(pos, Br_T=1.45)
+        B = all_corners.compute_field_at(pos)
         Bz = B[2]
         Bz_mT = Bz * 1000
         
@@ -166,7 +181,7 @@ def test_symmetric_cross():
     ]
     
     for pos, label in cardinal_tests:
-        B = all_corners.compute_field_at(pos, Br_T=1.45)
+        B = all_corners.compute_field_at(pos)
         Bx = B[0]
         By = B[1]
         Bz = B[2]
@@ -194,7 +209,7 @@ def test_symmetric_cross():
     ]
     
     for pos, label in diagonal_tests:
-        B = all_corners.compute_field_at(pos, Br_T=1.45)
+        B = all_corners.compute_field_at(pos)
         Bx = B[0]
         By = B[1]
         Bz = B[2]
