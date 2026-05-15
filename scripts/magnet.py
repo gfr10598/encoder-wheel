@@ -172,9 +172,9 @@ def positioned_corners(magnet, dx, dz, dtheta):
 
 
 class MagnetCorners:
-    """All corners (north, south, and optional reflections) with magnetization values.
+    """All corners (north, south, and optional reflections) with Br values.
     
-    Stores corner positions and their corresponding magnetization values.
+    Stores corner positions and their corresponding remanent flux density (Br_T) values.
     Provides method to compute magnetic field at a point in space.
     
     Can represent:
@@ -183,23 +183,23 @@ class MagnetCorners:
     - An array of magnets (N*8 or N*16 corners)
     """
     
-    def __init__(self, positions, mu_values):
+    def __init__(self, positions, br_values):
         """
         Args:
             positions: (N_corners, 3) array of [x, y, z] positions (mm)
-            mu_values: (N_corners,) array of magnetization values
-                      North pole corners: +mu
-                      South pole corners: -mu (inverted)
+            br_values: (N_corners,) array of remanent flux density values (T)
+                      North pole corners: +Br
+                      South pole corners: -Br (inverted)
                       Image corners: scaled version of above
         """
         self.positions = np.asarray(positions, dtype=float)  # (N_corners, 3)
-        self.mu_values = np.asarray(mu_values, dtype=float)   # (N_corners,)
+        self.br_values = np.asarray(br_values, dtype=float)   # (N_corners,)
         
-        assert self.positions.shape[0] == self.mu_values.shape[0], \
-            f"positions ({self.positions.shape[0]}) and mu_values ({self.mu_values.shape[0]}) must match"
+        assert self.positions.shape[0] == self.br_values.shape[0], \
+            f"positions ({self.positions.shape[0]}) and br_values ({self.br_values.shape[0]}) must match"
     
     def __repr__(self):
-        return f"MagnetCorners(corners={self.positions.shape[0]}, mu_range=[{self.mu_values.min():.3f}, {self.mu_values.max():.3f}])"
+        return f"MagnetCorners(corners={self.positions.shape[0]}, br_range=[{self.br_values.min():.3f}, {self.br_values.max():.3f}] T)"
     
     @staticmethod
     def combine(*corner_sets):
@@ -212,12 +212,12 @@ class MagnetCorners:
             New MagnetCorners with all corners stacked
         """
         positions_list = [cs.positions for cs in corner_sets]
-        mu_values_list = [cs.mu_values for cs in corner_sets]
+        br_values_list = [cs.br_values for cs in corner_sets]
         
         positions = np.vstack(positions_list)
-        mu_values = np.concatenate(mu_values_list)
+        br_values = np.concatenate(br_values_list)
         
-        return MagnetCorners(positions, mu_values)
+        return MagnetCorners(positions, br_values)
     
     def add(self, other):
         """Add corners from another MagnetCorners object to this one.
@@ -228,16 +228,15 @@ class MagnetCorners:
             other: Another MagnetCorners instance
         """
         self.positions = np.vstack([self.positions, other.positions])
-        self.mu_values = np.concatenate([self.mu_values, other.mu_values])
+        self.br_values = np.concatenate([self.br_values, other.br_values])
     
-    def compute_field_at(self, sensor_pos_mm, Br_T=1.45):
-        """Compute magnetic field at a sensor position.
+    def compute_field_at(self, sensor_pos_mm):
+        """Compute magnetic field at a sensor position using Aharoni algorithm.
         
-        Sums dipole field contributions from all corners.
+        Sums corner dipole contributions from all corners using their stored Br values.
         
         Args:
             sensor_pos_mm: [x, y, z] sensor position in mm
-            Br_T: Remanent flux density in Tesla
         
         Returns:
             [Bx, By, Bz] field in Tesla
@@ -246,7 +245,8 @@ class MagnetCorners:
         
         B_total = np.zeros(3)
         
-        for pos_mm, mu in zip(self.positions, self.mu_values):
+        # Aharoni corner-sum algorithm: each corner is a dipole with its own Br value
+        for pos_mm, Br_T in zip(self.positions, self.br_values):
             pos_m = pos_mm / 1000.0  # convert to meters
             
             # Vector from corner to sensor
@@ -257,30 +257,90 @@ class MagnetCorners:
                 # Skip if sensor is at corner position
                 continue
             
-            # Dipole moment: m = mu * (mu_0 / (4*pi)) * Br * V
-            # For unit volume and normalized field, we use: m = mu * Br
+            # Dipole field formula: B = (mu_0 / 4*pi) * [3*(m·r_hat)*r_hat - m] / r^3
             mu_0_over_4pi = 1e-7  # SI units
-            m_mag = mu * Br_T  # magnetic moment magnitude
             
-            # Dipole field: B = (mu_0 / 4*pi) * [3*(m·r_hat)*r_hat - m] / r^3
             r_hat = r_vec / r_mag
             
-            # Magnetization direction: mu already encodes sign, moment is always along z
-            m_vec = np.array([0.0, 0.0, mu * Br_T])
+            # Magnetic moment: m = [0, 0, Br_T] (z-axis magnetization)
+            m_vec = np.array([0.0, 0.0, Br_T])
             
             # 3*(m·r_hat)*r_hat - m
             m_dot_r_hat = np.dot(m_vec, r_hat)
             field_unnormalized = 3.0 * m_dot_r_hat * r_hat - m_vec
             
             # Scale by mu_0 / (4*pi) / r^3
-            B_mag = mu_0_over_4pi * field_unnormalized / (r_mag ** 3)
+            B_contribution = mu_0_over_4pi * field_unnormalized / (r_mag ** 3)
             
-            B_total += B_mag
+            B_total += B_contribution
         
         return B_total
+    
+    @staticmethod
+    def compute_field_analytic(center_mm, dims_mm, sensor_mm, Br_T=1.45):
+        """Compute magnetic field using Aharoni rectangular prism formula.
+        
+        Analytic closed-form solution for uniformly magnetized rectangular magnet.
+        
+        Args:
+            center_mm: [x, y, z] magnet center in mm
+            dims_mm: [L, W, T] full magnet dimensions in mm
+            sensor_mm: [x, y, z] sensor position in mm
+            Br_T: Remanent flux density in Tesla (default 1.45 for N52)
+        
+        Returns:
+            [Bx, By, Bz] field in Tesla
+        """
+        center = np.array(center_mm, dtype=float) / 1000.0
+        sensor = np.array(sensor_mm, dtype=float) / 1000.0
+        dims = np.array(dims_mm, dtype=float) / 1000.0
+        
+        rel_pos = sensor - center
+        dx, dy, dz = rel_pos
+        
+        L, W, T = dims
+        a, b, c = L/2.0, W/2.0, T/2.0
+        
+        X = np.array([dx - a, dx + a])
+        Y = np.array([dy - b, dy + b])
+        Z = np.array([dz - c, dz + c])
+        
+        M = Br_T
+        
+        Bz_sum = 0.0
+        Bx_sum = 0.0
+        By_sum = 0.0
+        
+        # Corner-sum formula: iterate over 8 corners of rectangular magnet
+        for i in range(2):
+            for j in range(2):
+                for k in range(2):
+                    x = X[i]
+                    y = Y[j]
+                    z = Z[k]
+                    
+                    r = np.sqrt(x**2 + y**2 + z**2)
+                    if r < 1e-12:
+                        continue
+                    
+                    # Sign pattern for corner contributions
+                    sgn = (-1.0)**(i + j + k)
+                    
+                    # Aharoni corner-sum components
+                    Bz_sum += sgn * np.arctan2(x*y, z*r)
+                    Bx_sum += sgn * np.log(max(y + r, 1e-12))
+                    By_sum += sgn * np.log(max(x + r, 1e-12))
+        
+        scale = M / (4*np.pi)
+        
+        Bz = scale * Bz_sum
+        Bx = -scale * Bx_sum
+        By = -scale * By_sum
+        
+        return np.array([Bx, By, Bz])
 
 
-def magnet_to_corners(magnet, dx, dz, dtheta, include_images=False,
+def magnet_to_corners(magnet, dx, dz, dtheta, Br_T=1.45, include_images=False,
                       z_steel_surface=0.0, mu_r=5.7):
     """Create MagnetCorners from a single Magnet.
     
@@ -289,6 +349,7 @@ def magnet_to_corners(magnet, dx, dz, dtheta, include_images=False,
         dx: Radial (x-direction) offset in mm
         dz: Vertical (z-direction) offset in mm
         dtheta: Rotation angle around z-axis in degrees
+        Br_T: Remanent flux density in Tesla (default 1.45 for N52)
         include_images: Whether to add image dipoles for steel backing
         z_steel_surface: Height of steel surface (mm) for image positioning
         mu_r: Relative permeability of steel
@@ -299,13 +360,14 @@ def magnet_to_corners(magnet, dx, dz, dtheta, include_images=False,
     # Get north and south pole corners
     nc, sc = positioned_corners(magnet, dx, dz, dtheta)
     
-    # Stack into single array and assign magnetizations
+    # Stack into single array and assign remanent flux density values
     positions = np.vstack([nc, sc])  # (8, 3)
-    mu_north = np.full(4, magnet.mu)
-    mu_south = np.full(4, -magnet.mu)  # inverted for south pole
-    mu_values = np.concatenate([mu_north, mu_south])
+    # magnet.mu is the sign: +1 for N-up, -1 for N-down
+    br_north = np.full(4, magnet.mu * Br_T)  # N pole gets +Br or -Br
+    br_south = np.full(4, -magnet.mu * Br_T)  # S pole gets inverted sign
+    br_values = np.concatenate([br_north, br_south])
     
-    corners = MagnetCorners(positions, mu_values)
+    corners = MagnetCorners(positions, br_values)
     
     # Add image dipoles if requested
     if include_images:
@@ -330,12 +392,12 @@ def magnet_to_corners(magnet, dx, dz, dtheta, include_images=False,
         # Create image corners
         img_positions = np.vstack([nc_img, sc_img])
         
-        mu_img_north = np.full(4, mu_scale * magnet.mu)
-        mu_img_south = np.full(4, -mu_scale * magnet.mu)
+        br_img_north = np.full(4, mu_scale * magnet.mu * Br_T)
+        br_img_south = np.full(4, -mu_scale * magnet.mu * Br_T)
         
-        img_mu_values = np.concatenate([mu_img_north, mu_img_south])
+        img_br_values = np.concatenate([br_img_north, br_img_south])
         
-        img_corners = MagnetCorners(img_positions, img_mu_values)
+        img_corners = MagnetCorners(img_positions, img_br_values)
         
         # Combine original and image corners
         corners = MagnetCorners.combine(corners, img_corners)
@@ -343,7 +405,7 @@ def magnet_to_corners(magnet, dx, dz, dtheta, include_images=False,
     return corners
 
 
-def array_to_corners(magnet_array, dx_list, dz_list, dtheta_list,
+def array_to_corners(magnet_array, dx_list, dz_list, dtheta_list, Br_T=1.45,
                      include_images=False, z_steel_surface=0.0, mu_r=5.7):
     """Create MagnetCorners from an array of Magnets.
     
@@ -352,6 +414,7 @@ def array_to_corners(magnet_array, dx_list, dz_list, dtheta_list,
         dx_list: Radial offsets for each magnet (mm)
         dz_list: Vertical offsets for each magnet (mm)
         dtheta_list: Rotation angles for each magnet (degrees)
+        Br_T: Remanent flux density in Tesla (default 1.45 for N52)
         include_images: Whether to add image dipoles for each magnet
         z_steel_surface: Height of steel surface (mm) for image positioning
         mu_r: Relative permeability of steel
@@ -362,7 +425,7 @@ def array_to_corners(magnet_array, dx_list, dz_list, dtheta_list,
     corner_sets = []
     
     for magnet, dx, dz, dtheta in zip(magnet_array, dx_list, dz_list, dtheta_list):
-        corners = magnet_to_corners(magnet, dx, dz, dtheta,
+        corners = magnet_to_corners(magnet, dx, dz, dtheta, Br_T=Br_T,
                                    include_images=include_images,
                                    z_steel_surface=z_steel_surface,
                                    mu_r=mu_r)
