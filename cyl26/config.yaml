@@ -1,0 +1,31 @@
+# CAD model: printed PETG cylinder that mounts on existing 4-in cast iron tube
+# and holds 26 magnets.
+
+# reference body only — existing cast iron tube, not printed
+shaft:
+  outer_radius_mm: 50.8
+
+# printed PETG cylinder — bore fits over shaft OD
+cylinder:
+  material: PETG
+  bore_clearance_mm: 0.1
+  wall_mm: 6.0
+  length_mm: 25.0
+
+# 20x10x5 mm NdFeB N52 magnets
+# axial = along sleeve axis (Z), tangential = around circumference, radial = through wall
+magnet:
+  count: 26
+  axial_mm: 20.0
+  radial_mm: 5.0
+  tangential_mm: 10.0
+  radial_rounding_mm: 0.5
+  other_rounding_mm: 0.2
+  pocket_clearance_mm: 0.1  # added to all pocket faces
+  snap_lip_mm: 0.2          # lip thickness around bore-face opening
+
+split:
+  plane: xz  # Y=0; magnets must not intersect this plane
+
+
+
