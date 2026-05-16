@@ -31,3 +31,10 @@ scripts/magnetic/*/*.png
 
 # Conversation artifacts
 CONVERSATION_HISTORY.md
+
+# Runtime artifacts
+.ocp_preview.lock
+
+# Generated 3D model outputs (re-ignore after !examples/*.stl above)
+examples/half_ring_cover.step
+examples/half_ring_cover.stl

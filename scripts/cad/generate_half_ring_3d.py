@@ -83,10 +83,10 @@ from build123d import (
     fillet,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _semi_annulus_sketch(r_inner: float, r_outer: float) -> None:
     """Add a Y>=0 semi-annular face to the active BuildSketch."""
@@ -96,7 +96,9 @@ def _semi_annulus_sketch(r_inner: float, r_outer: float) -> None:
     Rectangle(clip_w, r_outer * 2, align=(Align.CENTER, Align.MAX), mode=Mode.SUBTRACT)
 
 
-def _revolve_xz_profile(xz_pts: list[tuple[float, float]], arc_deg: float = 180.0) -> Shape:
+def _revolve_xz_profile(
+    xz_pts: list[tuple[float, float]], arc_deg: float = 180.0
+) -> Shape:
     """Revolve a closed XZ-plane polygon around the Z axis.
 
     Parameters
@@ -112,7 +114,9 @@ def _revolve_xz_profile(xz_pts: list[tuple[float, float]], arc_deg: float = 180.
     return Solid.revolve(face, arc_deg, Axis.Z)
 
 
-def _torus_cut(r_center: float, z_center: float, r_tube: float, n_pts: int = 24) -> Shape:
+def _torus_cut(
+    r_center: float, z_center: float, r_tube: float, n_pts: int = 24
+) -> Shape:
     """Half-torus (180°) formed by revolving a circle in XZ around Z.
 
     Creates a quarter-circle relief groove when intersected with a corner.
@@ -121,8 +125,10 @@ def _torus_cut(r_center: float, z_center: float, r_tube: float, n_pts: int = 24)
     r_tube  : radius of the cross-section circle (= dogbone_radius)
     """
     pts = [
-        (r_center + r_tube * math.cos(i * math.tau / n_pts),
-         z_center + r_tube * math.sin(i * math.tau / n_pts))
+        (
+            r_center + r_tube * math.cos(i * math.tau / n_pts),
+            z_center + r_tube * math.sin(i * math.tau / n_pts),
+        )
         for i in range(n_pts)
     ]
     return _revolve_xz_profile(pts)
@@ -132,6 +138,7 @@ def _torus_cut(r_center: float, z_center: float, r_tube: float, n_pts: int = 24)
 # Reference bodies  (not printed — used for intersection checks only)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def make_single_magnet(data: dict) -> Shape:
     """One 20×5×2 mm magnet at angle=0, resting against the steel bottom face at z2.
 
@@ -139,9 +146,9 @@ def make_single_magnet(data: dict) -> Shape:
       0.7 mm on the short (2 mm, Z-direction) edges
       0.3 mm on the longer (5 mm and 20 mm) edges
     """
-    L   = data["magnet_length"]       # 20 mm radial
-    W   = data["magnet_width"]        # 5 mm tangential
-    T   = data["magnet_thickness"]    # 2 mm axial
+    L = data["magnet_length"]  # 20 mm radial
+    W = data["magnet_width"]  # 5 mm tangential
+    T = data["magnet_thickness"]  # 2 mm axial
     mir = data["magnet_inner_radius"]
 
     with BuildPart() as p:
@@ -152,7 +159,7 @@ def make_single_magnet(data: dict) -> Shape:
         # Longer (W=5 mm and L=20 mm) edges — smaller corner round
         long_edges = [e for e in p.edges() if e.length > T + 0.5]
         fillet(long_edges, radius=0.3)
-    z_bottom = data["z2"] - T   # magnet hangs from steel bottom face at z2
+    z_bottom = data["z2"] - T  # magnet hangs from steel bottom face at z2
     return p.part.moved(Location((mir, 0, z_bottom)))
 
 
@@ -177,8 +184,8 @@ def make_steel_half_ring(data: dict) -> Shape:
     """
     sir = data["steel_inner_radius"]
     sor = data["steel_outer_radius"]
-    z2  = data["z2"]
-    st  = data["steel_thickness"]
+    z2 = data["z2"]
+    st = data["steel_thickness"]
     with BuildPart() as p:
         with BuildSketch(Plane(origin=(0, 0, z2))):
             _semi_annulus_sketch(sir, sor)
@@ -191,6 +198,7 @@ def make_steel_half_ring(data: dict) -> Shape:
 # Printed cover — built subtractively
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def make_cover_blank(data: dict) -> Shape:
     """Solid half-ring annulus: cover ID → cover OD, z0 → z5.
 
@@ -198,7 +206,7 @@ def make_cover_blank(data: dict) -> Shape:
     """
     cir = data["cover_inner_radius"]
     cor = data["cover_outer_radius"]
-    z5  = data["z5"]
+    z5 = data["z5"]
     with BuildPart() as p:
         with BuildSketch(Plane.XY):
             _semi_annulus_sketch(cir, cor)
@@ -222,24 +230,24 @@ def make_steel_cavity_void(data: dict) -> Shape:
 
     Radial clr = 0.05 mm each side (cavity wider than steel); axial floor clr = 0.02 mm.
     """
-    sir, sor  = data["steel_inner_radius"], data["steel_outer_radius"]
+    sir, sor = data["steel_inner_radius"], data["steel_outer_radius"]
     z2, z3, z4, z5 = data["z2"], data["z3"], data["z4"], data["z5"]
-    snap  = data["snap_overhang"]   # 0.2 mm
-    taper = data["chamfer_taper"]   # 1.2 mm
-    clr   = 0.05                    # steel clearance
+    snap = data["snap_overhang"]  # 0.2 mm
+    taper = data["chamfer_taper"]  # 1.2 mm
+    clr = 0.05  # steel clearance
 
-    axial_clr = 0.02          # floor clearance (steel not press-fit axially)
+    axial_clr = 0.02  # floor clearance (steel not press-fit axially)
     xz = [
-        (sir - clr,    z2 - axial_clr),   # inner cavity wall: 0.05 mm outside steel ID
-        (sor + clr,    z2 - axial_clr),   # outer cavity wall: 0.05 mm outside steel OD
-        (sor + clr,    z3),
-        (sor - snap,   z3),
-        (sor - snap,   z4),
-        (sor + taper,  z5),
-        (sir - taper,  z5),
-        (sir + snap,   z4),
-        (sir + snap,   z3),
-        (sir - clr,    z3),              # inner seat wall: 0.05 mm outside steel ID
+        (sir - clr, z2 - axial_clr),  # inner cavity wall: 0.05 mm outside steel ID
+        (sor + clr, z2 - axial_clr),  # outer cavity wall: 0.05 mm outside steel OD
+        (sor + clr, z3),
+        (sor - snap, z3),
+        (sor - snap, z4),
+        (sor + taper, z5),
+        (sir - taper, z5),
+        (sir + snap, z4),
+        (sir + snap, z3),
+        (sir - clr, z3),  # inner seat wall: 0.05 mm outside steel ID
     ]
     return _revolve_xz_profile(xz)
 
@@ -255,16 +263,16 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
     z = r_dog above the floor, so its bottom is tangent to z=0 (the floor) —
     no material is removed below z=0 and the 1 mm base skin is safe.
     """
-    mir   = data["magnet_inner_radius"]
-    z1    = data["z1"]
-    z2    = data["z2"]
-    L     = data["magnet_length"] + 0.10  # radial:     20.10 mm
-    W     = data["magnet_width"]  + 0.10  # tangential:  5.10 mm
-    T     = (z2 - z1) + 0.05             # axial:        2.15 mm
-    clr   = 0.05
-    r     = data["dogbone_radius"]        # 0.25 mm
+    mir = data["magnet_inner_radius"]
+    z1 = data["z1"]
+    z2 = data["z2"]
+    L = data["magnet_length"] + 0.10  # radial:     20.10 mm
+    W = data["magnet_width"] + 0.10  # tangential:  5.10 mm
+    T = (z2 - z1) + 0.05  # axial:        2.15 mm
+    clr = 0.05
+    r = data["dogbone_radius"]  # 0.25 mm
 
-    mir_f = mir - clr                     # expanded inner radial face
+    mir_f = mir - clr  # expanded inner radial face
 
     with BuildPart() as p:
         # Core rectangular void
@@ -298,9 +306,9 @@ def make_magnet_pocket_void(data: dict, index: int) -> Shape:
         # Frustum base (at z=T-ch_h) fits exactly inside the box (L×W).
         # Taper expands outward going UP to z=T, cutting into the walls
         # to create a lead-in for magnet insertion.
-        ch_h = 0.5   # chamfer height (mm)
-        ch_w = 0.2   # chamfer width  (mm) each side
-        _taper = math.degrees(math.atan2(ch_w, ch_h))   # ~21.8°
+        ch_h = 0.5  # chamfer height (mm)
+        ch_w = 0.2  # chamfer width  (mm) each side
+        _taper = math.degrees(math.atan2(ch_w, ch_h))  # ~21.8°
         with BuildSketch(Plane(origin=(L / 2, 0, T - ch_h))):
             Rectangle(L, W)
         extrude(amount=ch_h, taper=-_taper)  # negative: expands outward going up
@@ -323,14 +331,16 @@ def make_steel_corner_dogbones(data: dict) -> Compound:
     """
     sir = data["steel_inner_radius"]
     sor = data["steel_outer_radius"]
-    z2  = data["z2"]
-    r   = data["dogbone_radius"]
+    z2 = data["z2"]
+    r = data["dogbone_radius"]
     clr = 0.05
-    z_floor = z2 - 0.02   # cavity floor (0.02 mm below steel bottom face)
-    return Compound([
-        _torus_cut(sir - clr, z_floor, r),   # inner corner: cavity inside steel ID
-        _torus_cut(sor + clr, z_floor, r),   # outer corner: cavity outside steel OD
-    ])
+    z_floor = z2 - 0.02  # cavity floor (0.02 mm below steel bottom face)
+    return Compound(
+        [
+            _torus_cut(sir - clr, z_floor, r),  # inner corner: cavity inside steel ID
+            _torus_cut(sor + clr, z_floor, r),  # outer corner: cavity outside steel OD
+        ]
+    )
 
 
 def make_snap_root_dogbones(data: dict) -> Compound:
@@ -347,20 +357,22 @@ def make_snap_root_dogbones(data: dict) -> Compound:
     above z3 (into the snap arm) and 0.25 mm below z3 (into the seat,
     which is already void — no material removed there).
     """
-    sir  = data["steel_inner_radius"]
-    sor  = data["steel_outer_radius"]
-    z3   = data["z3"]
-    snap   = data["snap_overhang"]    # 0.2 mm (unused for torus position)
-    r      = data["dogbone_radius"]   # 0.25 mm
-    z_hinge = z3 - r   # torus centred here → top of circle tangent to z3
-                        # so the entire torus body sits below the snap arm
+    sir = data["steel_inner_radius"]
+    sor = data["steel_outer_radius"]
+    z3 = data["z3"]
+    snap = data["snap_overhang"]  # 0.2 mm (unused for torus position)
+    r = data["dogbone_radius"]  # 0.25 mm
+    z_hinge = z3 - r  # torus centred here → top of circle tangent to z3
+    # so the entire torus body sits below the snap arm
     # Tori aligned on the steel face (sor / sir), not on the snap edge:
     # the hinge groove must be at the point where the PETG wall transitions
     # from the flat steel seat to the snap arm — that is the steel face.
-    return Compound([
-        _torus_cut(sor, z_hinge, r),   # outer snap root — at steel OD
-        _torus_cut(sir, z_hinge, r),   # inner snap root — at steel ID
-    ])
+    return Compound(
+        [
+            _torus_cut(sor, z_hinge, r),  # outer snap root — at steel OD
+            _torus_cut(sir, z_hinge, r),  # inner snap root — at steel ID
+        ]
+    )
 
 
 def make_cover(data: dict) -> Shape:
@@ -394,9 +406,10 @@ def make_cover(data: dict) -> Shape:
     # Straight edges at Y≈0 (the half-ring cut plane) have only one adjacent
     # face and will cause OCCT to abort, so we skip them.
     bevel_edges = [
-        e for e in cover.edges()
+        e
+        for e in cover.edges()
         if (abs(e.center().Z) < 0.15 or abs(e.center().Z - z5) < 0.15)
-        and e.center().Y > 1.0    # exclude Y=0 boundary edges
+        and e.center().Y > 1.0  # exclude Y=0 boundary edges
     ]
     if bevel_edges:
         try:
@@ -412,11 +425,12 @@ def make_cover(data: dict) -> Shape:
 # Intersection check
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def check_no_intersections(named_parts: dict[str, Shape], tol: float = 0.01) -> None:
     """Raise ValueError if any two shapes share volume > tol mm³."""
     items = list(named_parts.items())
     for i, (n1, p1) in enumerate(items):
-        for n2, p2 in items[i + 1:]:
+        for n2, p2 in items[i + 1 :]:
             overlap = p1 & p2
             vol = getattr(overlap, "volume", 0.0) or 0.0
             if vol > tol:
@@ -430,13 +444,15 @@ def check_no_intersections(named_parts: dict[str, Shape], tol: float = 0.01) -> 
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate half-ring cover STL/STEP")
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--no-step", action="store_true", help="Skip STEP export")
     parser.add_argument("--no-stl", action="store_true")
     parser.add_argument(
-        "--check-intersections", action="store_true",
+        "--check-intersections",
+        action="store_true",
         help="Build reference bodies and verify no overlaps with cover (slow)",
     )
     args = parser.parse_args()
@@ -460,7 +476,7 @@ def main() -> None:
     if args.check_intersections:
         print("  Building reference bodies …")
         magnets = make_magnet_array(data)
-        steel   = make_steel_half_ring(data)
+        steel = make_steel_half_ring(data)
         check_no_intersections({"cover": cover, "magnets": magnets, "steel": steel})
 
     if not args.no_stl:
@@ -473,7 +489,30 @@ def main() -> None:
         export_step(cover, str(path))
         print(f"  → {path}")
 
+    return cover
+
+
+def _alert(title: str, message: str) -> None:
+    """Show a native macOS alert dialog. No-ops silently on non-macOS."""
+    import subprocess, sys
+
+    if sys.platform != "darwin":
+        return
+    safe = message[:400].replace("\\", "\\\\").replace('"', '\\"')
+    subprocess.run(
+        ["osascript", "-e", f'display alert "{title}" message "{safe}"'],
+        check=False,
+        capture_output=True,
+    )
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
 
+        tb = traceback.format_exc()
+        print(tb)
+        _alert("generate_half_ring_3d.py failed", str(e))
+        raise
