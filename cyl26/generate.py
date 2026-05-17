@@ -20,6 +20,8 @@ Usage
 
 from __future__ import annotations
 
+import argparse
+import time
 import math
 from pathlib import Path
 
@@ -39,11 +41,11 @@ from build123d import (
     Rotation,
     ThreePointArc,
     add,
+    export_step,
     extrude,
     fillet,
     offset,
 )
-from ocp_vscode import set_port, show  # type: ignore
 
 CONFIG = Path(__file__).parent / "config.yaml"
 
@@ -92,8 +94,8 @@ def magnet_body(cfg: dict):
     return bp.part
 
 
-def magnet_pocket_at_zero(cfg: dict):
-    """Single magnet pocket at θ=0.
+def magnet_pocket(cfg: dict, angle: float = 0.0):
+    """Magnet pocket at the given angle (degrees).
 
     The pocket is offset by cl/2 and its centre shifted outward by cl/2, so
     that the pocket inner face, magnet inner face, and shaft surface all
@@ -104,7 +106,6 @@ def magnet_pocket_at_zero(cfg: dict):
     cyl = cfg["cylinder"]
     cl = mc["pocket_clearance_mm"]
     shaft_r = cfg["shaft"]["outer_radius_mm"]
-    # Pocket centre is cl/2 outward from the magnet centre so the inner faces align.
     pocket_r = shaft_r + mc["radial_mm"] / 2 + cl / 2
     z_center = cyl["length_mm"] / 2
 
@@ -112,11 +113,11 @@ def magnet_pocket_at_zero(cfg: dict):
     with BuildPart() as bp:
         add(positioned)
         offset(amount=cl / 2)
-    return bp.part
+    return bp.part.moved(Rotation(0, 0, angle))
 
 
-def snap_opening_at_zero(cfg: dict):
-    """Snap-in opening through the bore wall.
+def snap_opening(cfg: dict, angle: float = 0.0):
+    """Snap-in opening through the bore wall at the given angle (degrees).
 
     A plain box 0.2 mm smaller than the magnet on the tangential and axial
     faces, centred 2 mm inward (toward axis).  This leaves a 0.2 mm lip
@@ -129,11 +130,15 @@ def snap_opening_at_zero(cfg: dict):
     z_center = cyl["length_mm"] / 2
     lip = mc["snap_lip_mm"]
 
-    return Box(
-        mc["radial_mm"],
-        mc["tangential_mm"] - 2 * lip,
-        mc["axial_mm"] - 2 * lip,
-    ).moved(Location((snap_r, 0, z_center)))
+    return (
+        Box(
+            mc["radial_mm"],
+            mc["tangential_mm"] - 2 * lip,
+            mc["axial_mm"] - 2 * lip,
+        )
+        .moved(Location((snap_r, 0, z_center)))
+        .moved(Rotation(0, 0, angle))
+    )
 
 
 def make_sleeve(cfg: dict, pockets=()):
@@ -153,21 +158,66 @@ def make_sleeve(cfg: dict, pockets=()):
 
 # ── entry point ──────────────────────────────────────────────────────────────
 
-cfg = load_config()
-pocket = magnet_pocket_at_zero(cfg)
-snap = snap_opening_at_zero(cfg)
-sleeve = make_sleeve(cfg, pockets=[pocket, snap])
-magnet = magnet_body(cfg)
-shaft_r = cfg["shaft"]["outer_radius_mm"]
-magnet_r = shaft_r + cfg["magnet"]["radial_mm"] / 2
-z_mid = cfg["cylinder"]["length_mm"] / 2
-magnet = magnet.moved(Location((magnet_r, 0, z_mid)))
-set_port(3939)
-show(
-    sleeve,
-    magnet,
-    names=["sleeve", "magnet"],
-    colors=[None, "blue"],
-    alphas=[0.9, 1.0],
-    render_edges=True,
-)
+
+def _build_model(cfg: dict):
+    """Return (sleeve, magnet, angles) — magnet is reference-only (viewer)."""
+    angles = magnet_angles_deg(cfg)
+    pockets = [magnet_pocket(cfg, a) for a in angles]
+    snaps = [snap_opening(cfg, a) for a in angles]
+    sleeve = make_sleeve(cfg, pockets=pockets + snaps)
+    shaft_r = cfg["shaft"]["outer_radius_mm"]
+    magnet_r = shaft_r + cfg["magnet"]["radial_mm"] / 2
+    z_mid = cfg["cylinder"]["length_mm"] / 2
+    magnet = (
+        magnet_body(cfg)
+        .moved(Location((magnet_r, 0, z_mid)))
+        .moved(Rotation(0, 0, angles[0]))
+    )
+    return sleeve, magnet, angles
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Generate PETG sleeve model.")
+    p.add_argument(
+        "--export",
+        action="store_true",
+        help="Write sleeve.step and sleeve.stl to the cyl26/ directory instead of opening the OCP viewer.",
+    )
+    p.add_argument(
+        "--out-dir",
+        default=str(Path(__file__).parent),
+        help="Output directory for exported files (default: cyl26/).",
+    )
+    return p.parse_args()
+
+
+if __name__ == "__main__":
+    args = _parse_args()
+    cfg = load_config()
+
+    t0 = time.monotonic()
+    sleeve, magnet, angles = _build_model(cfg)
+    print(f"build   {time.monotonic() - t0:.1f}s")
+
+    if args.export:
+        out = Path(args.out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        step_path = out / "sleeve.step"
+        t1 = time.monotonic()
+        export_step(sleeve, str(step_path))
+        print(f"export  {time.monotonic() - t1:.1f}s  → {step_path}")
+    else:
+        from ocp_vscode import set_port, show  # type: ignore
+
+        set_port(3939)
+        show(
+            sleeve,
+            magnet,
+            names=["sleeve", "magnet"],
+            colors=[None, "blue"],
+            alphas=[0.9, 1.0],
+            render_edges=True,
+        )
+else:
+    # Allow `from cyl26.generate import …` without side-effects.
+    pass

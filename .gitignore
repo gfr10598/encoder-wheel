@@ -38,3 +38,4 @@ CONVERSATION_HISTORY.md
 # Generated 3D model outputs (re-ignore after !examples/*.stl above)
 examples/half_ring_cover.step
 examples/half_ring_cover.stl
+cyl26/sleeve.step
