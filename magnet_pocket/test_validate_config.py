@@ -1,7 +1,6 @@
 """Unit tests for magnet_pocket/validate_config.py"""
 
 import copy
-import math
 import unittest
 
 from validate_config import validate, check_required_keys
