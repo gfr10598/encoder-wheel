@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import time
-import math
 from pathlib import Path
 
 import yaml
