@@ -1,9 +1,9 @@
 # Magnet pocket generator configuration
 magnet:
-  radial_mm: 20.0
+  radial_mm: 5.0
   tangential_mm: 10.0
-  axial_mm: 5.0
-  edge_radius_axial_mm: 0.5
+  axial_mm: 20.0
+  edge_radius_radial_mm: 0.5
   edge_radius_other_mm: 0.2
 # These are the frame specs.
 holder:
@@ -17,7 +17,7 @@ holder:
 # This is the comb of snaps, which interleave with adjacent cell.
 comb:
   count: 3
-  thickness_mm: 2.0
+  thickness_mm: 1.2
   axial_gap: 0.5  # gap between snaps, along axial direction
   clearance_mm: 0.1
   snap_overhang_mm: 0.2

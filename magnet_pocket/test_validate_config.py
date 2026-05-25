@@ -14,7 +14,7 @@ BASE_CFG = {
         "radial_mm": 5.0,
         "tangential_mm": 10.0,
         "axial_mm": 20.0,
-        "edge_radius_axial_mm": 0.5,
+        "edge_radius_radial_mm": 0.5,
         "edge_radius_other_mm": 0.2,
     },
     "holder": {
@@ -151,10 +151,10 @@ class TestV8BoreSnap(unittest.TestCase):
 class TestV9AxialFillet(unittest.TestCase):
     def test_fillet_too_large_fails(self):
         # min(tangential=10, radial=5)/2 = 2.5; use 3.0
-        self.assertIn("V9", validate(_cfg(magnet__edge_radius_axial_mm=3.0)))
+        self.assertIn("V9", validate(_cfg(magnet__edge_radius_radial_mm=3.0)))
 
     def test_fillet_within_limit_passes(self):
-        self.assertNotIn("V9", validate(_cfg(magnet__edge_radius_axial_mm=0.5)))
+        self.assertNotIn("V9", validate(_cfg(magnet__edge_radius_radial_mm=0.5)))
 
 
 class TestV10OtherFillet(unittest.TestCase):

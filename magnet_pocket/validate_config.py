@@ -22,9 +22,17 @@ def load(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def check(label: str, name: str, condition: bool, detail: str, failures: list) -> None:
-    status = "PASS" if condition else "FAIL"
-    print(f"  {status}  {label:4s} {name:35s}  {detail}")
+def check(
+    label: str,
+    name: str,
+    condition: bool,
+    detail: str,
+    failures: list,
+    verbose: bool = True,
+) -> None:
+    if verbose:
+        status = "PASS" if condition else "FAIL"
+        print(f"  {status}  {label:4s} {name:35s}  {detail}")
     if not condition:
         failures.append(label)
 
@@ -34,7 +42,7 @@ _REQUIRED_KEYS: dict[str, list[str]] = {
         "radial_mm",
         "tangential_mm",
         "axial_mm",
-        "edge_radius_axial_mm",
+        "edge_radius_radial_mm",
         "edge_radius_other_mm",
     ],
     "holder": [
@@ -71,11 +79,12 @@ def check_required_keys(cfg: dict) -> list[str]:
     return missing
 
 
-def validate(cfg: dict) -> list[str]:
+def validate(cfg: dict, verbose: bool = True) -> list[str]:
     """Run all validation checks; return list of failing rule IDs."""
     missing = check_required_keys(cfg)
     if missing:
-        print(f"\nERROR: missing required config keys: {missing}")
+        if verbose:
+            print(f"\nERROR: missing required config keys: {missing}")
         return ["KEYS"]
 
     m = cfg["magnet"]
@@ -101,19 +110,22 @@ def validate(cfg: dict) -> list[str]:
 
     failures: list[str] = []
 
-    print("\nDerived dimensions:")
-    print(f"  R_i (bore radius)          = {R_i:.3f} mm")
-    print(f"  R_o (outer radius)         = {R_o:.3f} mm")
-    print(f"  W_i (arc width at bore)    = {W_i:.3f} mm")
-    print(f"  H   (cell axial height)    = {H:.3f} mm")
-    print(f"  tooth pitch                = {tooth_pitch:.3f} mm")
-    print(f"  tooth width (after axial_gap) = {tooth_width:.3f} mm")
-    print(f"  outer wall remaining       = {outer_wall:.3f} mm")
-    print(
-        f"  tangential space needed    = {tangential_needed:.3f} mm  (limit {W_i:.3f} mm)"
-    )
+    if verbose:
+        print("\nDerived dimensions:")
+    if verbose:
+        print(f"  R_i (bore radius)          = {R_i:.3f} mm")
+        print(f"  R_o (outer radius)         = {R_o:.3f} mm")
+        print(f"  W_i (arc width at bore)    = {W_i:.3f} mm")
+        print(f"  H   (cell axial height)    = {H:.3f} mm")
+        print(f"  tooth pitch                = {tooth_pitch:.3f} mm")
+        print(f"  tooth width (after axial_gap) = {tooth_width:.3f} mm")
+        print(f"  outer wall remaining       = {outer_wall:.3f} mm")
+        print(
+            f"  tangential space needed    = {tangential_needed:.3f} mm  (limit {W_i:.3f} mm)"
+        )
 
-    print("\nValidation checks:")
+    if verbose:
+        print("\nValidation checks:")
     check(
         "V1",
         "Even magnet count",
@@ -178,12 +190,12 @@ def validate(cfg: dict) -> list[str]:
         failures,
     )
 
-    axial_fillet_limit = min(m["tangential_mm"], m["radial_mm"]) / 2
+    radial_fillet_limit = min(m["tangential_mm"], m["axial_mm"]) / 2
     check(
         "V9",
         "Axial fillet fits on edge",
-        m["edge_radius_axial_mm"] <= axial_fillet_limit,
-        f"{m['edge_radius_axial_mm']} ≤ {axial_fillet_limit:.3f}?",
+        m["edge_radius_radial_mm"] <= radial_fillet_limit,
+        f"{m['edge_radius_radial_mm']} ≤ {radial_fillet_limit:.3f}?",
         failures,
     )
 
