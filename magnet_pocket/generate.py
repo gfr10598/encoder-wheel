@@ -19,6 +19,7 @@ Usage
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -52,15 +53,16 @@ def load_config() -> dict:
 # ── magnet reference body ─────────────────────────────────────────────────────
 
 
-def make_magnet(cfg: dict) -> Solid:
+def make_magnet(cfg: dict, shrink: float = 0.0) -> Solid:
     """Filleted magnet box centred at origin.  Radial=+X, tangential=Y, axial=Z.
 
-    This is the reference body used for visualisation and pocket sizing.
+    shrink: reduce each face inward by this amount before filleting.
     Call .moved() to position it in the ring.
     """
     m = cfg["magnet"]
+    s2 = 2 * shrink
     with BuildPart() as bp:
-        Box(m["radial_mm"], m["tangential_mm"], m["axial_mm"])
+        Box(m["radial_mm"] - s2, m["tangential_mm"] - s2, m["axial_mm"] - s2)
         # Radial (X-parallel) edges get the larger fillet first
         fillet(bp.edges().filter_by(Axis.X), m["edge_radius_radial_mm"])
         # Tangential and axial edges get the smaller fillet
@@ -104,9 +106,48 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
 
     # ── positioned magnet ─────────────────────────────────────────────────────
     magnet = make_magnet(cfg)
-    # Inner face of magnet flush with bore surface → centre at R_i + radial/2
-    magnet_r = R_i + m["radial_mm"] / 2
+    # Shift magnet outward by cl so the pocket inner face (magnet face − cl)
+    # lands exactly on the bore surface (R_i), tangent to the ID.
+    magnet_r = R_i + m["radial_mm"] / 2 + cl
     positioned_magnet = magnet.moved(Location((magnet_r, 0, 0)))
+
+    # ── lead-in frustrum fused onto the magnet in its local frame ────────────
+    # Inner station: bisect the magnet with a plane at z_inner; the cut face
+    # carries the exact filleted profile (Z-edge fillets rounded corners).
+    # Outer station: polygon + fillet_2d at z_outer — a uniform outward offset.
+    taper_in = 2.0  # mm inside from +Z end (local Z = +8)
+    taper_len = 5.0  # mm along axis to the wide end (local Z = +13)
+    lead_in_cl = 1.0  # mm expansion on each side
+    r0 = m["edge_radius_other_mm"]  # magnet corner radius (Z-edge fillet)
+
+    z_inner = m["axial_mm"] / 2 - taper_in  # +8
+    z_outer = z_inner + taper_len  # +13
+
+    # Bisect: cut everything above z_inner away and take the new flat face.
+    cutter_slab = Box(1000, 1000, 1000).moved(Location((0, 0, z_inner + 500)))
+    magnet_lower = magnet.cut(cutter_slab)
+    cs_face = max(
+        (f for f in magnet_lower.faces() if abs(f.center().Z - z_inner) < 0.1),
+        key=lambda f: f.area,
+    )
+    w_inner = cs_face.outer_wire()
+
+    # Outer station: filleted rectangle built at Z=0, then moved to z_outer.
+    dx_out = m["radial_mm"] + 2 * lead_in_cl
+    dy_out = m["tangential_mm"] + 2 * lead_in_cl
+    r_out = r0 + lead_in_cl
+    hw, hh = dx_out / 2, dy_out / 2
+    rect = Wire.make_polygon(
+        [(-hw, -hh, 0), (hw, -hh, 0), (hw, hh, 0), (-hw, hh, 0)], close=True
+    )
+    w_outer = rect.fillet_2d(r_out, rect.vertices()).moved(Location((0, 0, z_outer)))
+
+    taper_frustrum = Solid.make_loft([w_inner, w_outer])
+
+    with BuildPart() as cutter_bp:
+        add(magnet)
+        add(taper_frustrum)
+    magnet_with_taper = cutter_bp.part
 
     # ── pocket = positioned magnet expanded by clearance ─────────────────────
     with BuildPart() as pocket_bp:
@@ -114,61 +155,7 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
         offset(amount=cl)
     pocket = pocket_bp.part
 
-    # ── comb slot cutters ─────────────────────────────────────────────────────
-    # Comb occupies the magnet axial span with 2×edge_radius padding each end.
-    # 2N tooth positions alternate L/R across that span.  Cut the N positions
-    # belonging to the adjacent cell on each face.
-    c = cfg["comb"]
-    N = c["count"]
-    r_pad = 2 * m["edge_radius_other_mm"]
-    comb_span = m["axial_mm"] - 2 * r_pad  # axial extent of comb zone
-    q = comb_span / (2 * N)  # pitch per tooth in combined array
-    slot_h = (q - c["axial_gap"]) + 2 * c["axial_gap"]  # = q + axial_gap
-    R_slot = R_i + m["radial_mm"]  # from z-axis to pocket floor
-
-    # 2N grid centres from -comb_span/2 to +comb_span/2, step q:
-    #   slot k (0-indexed): z = -comb_span/2 + (k + 0.5)*q
-    # Left face owns even slots (k=0,2,...); cut the odd slots for adj. cell.
-    cut_z_left = [-comb_span / 2 + (2 * k + 1.5) * q for k in range(N)]
-    # Right face owns odd slots (k=1,3,...); cut the even slots for adj. cell.
-    cut_z_right = [-comb_span / 2 + (2 * k + 0.5) * q for k in range(N)]
-
-    def _slot_wedge(
-        slot_z: float, rot_deg: float, height: float | None = None
-    ) -> Solid:
-        h_cut = height if height is not None else slot_h
-        xz_pts = [
-            (0.0, slot_z - h_cut / 2),
-            (R_slot, slot_z - h_cut / 2),
-            (R_slot, slot_z + h_cut / 2),
-            (0.0, slot_z + h_cut / 2),
-        ]
-        pts_3d = [(x, 0.0, z) for x, z in xz_pts]
-        n = len(pts_3d)
-        edges = [Edge.make_line(pts_3d[i], pts_3d[(i + 1) % n]) for i in range(n)]
-        # Revolve spans [0, span_deg]; rotate so it straddles the target face.
-        # Left face is at +span_deg/2 → rot=0 centres wedge at span_deg/2.
-        # Right face is at -span_deg/2 → rot=-span_deg centres wedge there.
-        wedge = Solid.revolve(Face(Wire(edges)), span_deg, Axis.Z)
-        return wedge.moved(Rotation(0, 0, rot_deg))
-
-    # End-gap slices: free the outermost tooth on each face from the solid end wall.
-    end_gap_zs = [
-        -(comb_span / 2 + c["axial_gap"] / 2),
-        +(comb_span / 2 + c["axial_gap"] / 2),
-    ]
-
-    slot_cutters = (
-        [_slot_wedge(z, 0.0) for z in cut_z_left]
-        + [_slot_wedge(z, -span_deg) for z in cut_z_right]
-        + [
-            _slot_wedge(z, rot, height=c["axial_gap"])
-            for z in end_gap_zs
-            for rot in [0.0, -span_deg]
-        ]
-    )
-
-    # ── sector with filleted end arcs, then pocket and slots subtracted ───────
+    # ── sector with filleted end arcs, then pocket subtracted ─────────────────
     end_z = H / 2
     fillet_r = min(h["end_face_mm"] / 4, 0.5)
     with BuildPart() as bp:
@@ -181,17 +168,45 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
         if end_arcs:
             fillet(end_arcs, fillet_r)
         add(pocket, mode=Mode.SUBTRACT)
-        for cutter in slot_cutters:
-            add(cutter, mode=Mode.SUBTRACT)
-        # ── snap hook trim: plain box centred at bore face, shrunk by snap ──────
-        snap = c["snap_overhang_mm"]
-        snap_cutter = Box(
-            m["radial_mm"],
-            m["tangential_mm"] - 2 * snap,
-            m["axial_mm"],
-            mode=Mode.PRIVATE,
-        ).moved(Location((R_i, 0, 0)))
-        add(snap_cutter, mode=Mode.SUBTRACT)
+        # ── axial insertion opening: tilted cutter through the +Z end face ────
+        # Pivot at the bore-side inner face at the BOTTOM of the cutter so the
+        # bottom inner edge stays on the bore wall regardless of tilt angle.
+        # Cutter centre is only 2 mm above the holder midplane (Z=0); the tilt
+        # is derived from the desired rim thickness at the holder face (Z=+12):
+        #   rim = R_o − outer_face − face_shift  →  face_shift = R_o − outer_face − rim_target
+        #   tilt = atan(face_shift / (H/2 − pivot_z))
+        insertion_Z = 2.0  # cutter centre Z in cell frame
+        pivot_x = R_i + cl  # bore-side face (radial)
+        pivot_z = insertion_Z - m["axial_mm"] / 2  # = −8 (cutter bottom)
+        rim_target = 1.6  # desired end-face rim (mm)
+        outer_face = magnet_r + cl + m["radial_mm"] / 2  # = 56.0 mm
+        face_shift = R_o - outer_face - rim_target  # = 1.2 mm
+        face_to_pivot = H / 2 - pivot_z  # = 20 mm
+        tilt_deg = math.degrees(math.atan(face_shift / face_to_pivot))
+        insertion_cutter = (
+            magnet_with_taper.moved(Location((magnet_r + cl, 0, insertion_Z)))
+            .moved(Location((-pivot_x, 0, -pivot_z)))
+            .moved(Rotation(0, tilt_deg, 0))
+            .moved(Location((pivot_x, 0, pivot_z)))
+        )
+        add(insertion_cutter, mode=Mode.SUBTRACT)
+        # ── fillet all remaining sharp (linear) edges to 0.1 mm ──────────────
+        sharp = [
+            e for e in bp.edges() if e.geom_type == GeomType.LINE and e.length >= 0.1
+        ]
+        if sharp:
+            try:
+                fillet(sharp, 0.1)
+            except Exception:
+                # Batch failed (face-consumption); apply one at a time, skip failures
+                skipped = 0
+                for e in sharp:
+                    try:
+                        fillet([e], 0.1)
+                    except Exception:
+                        skipped += 1
+                if skipped:
+                    print(f"  fillet: skipped {skipped}/{len(sharp)} edges")
 
     return bp.part, positioned_magnet
 
@@ -217,9 +232,12 @@ def main() -> None:
         from ocp_vscode import Camera, show, set_port  # type: ignore[import]
 
         set_port(3939)
+        bb = cell.bounding_box()
+        c = bb.center()
+        view_offset = Location((-c.X, -c.Y, -c.Z))
         show(
-            cell,
-            magnet,
+            cell.moved(view_offset),
+            magnet.moved(view_offset),
             names=["cell", "magnet"],
             colors=["#6baed6", "#cccccc"],
             alphas=[0.7, 1.0],

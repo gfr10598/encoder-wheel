@@ -1,8 +1,8 @@
 # Magnet pocket generator configuration
 magnet:
-  radial_mm: 5.0
-  tangential_mm: 10.0
-  axial_mm: 20.0
+  radial_mm: 4.62   # 0.1819 inches
+  tangential_mm: 9.46   # 0.3726 inches
+  axial_mm: 19.0  # .7479 inches
   edge_radius_radial_mm: 0.5
   edge_radius_other_mm: 0.2
 # These are the frame specs.
