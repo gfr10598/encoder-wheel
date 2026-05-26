@@ -129,9 +129,16 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     z_inner = H / 2 - taper_in - insertion_Z
     z_outer = z_inner + taper_len  # +13
 
+    # Apply clearance to the magnet body first so the frustum inner profile matches
+    # the pocket walls exactly.
+    with BuildPart() as magnet_cl_bp:
+        add(magnet)
+        offset(amount=cl / 2)
+    magnet_cleared = magnet_cl_bp.part
+
     # Bisect: cut everything above z_inner away and take the new flat face.
     cutter_slab = Box(1000, 1000, 1000).moved(Location((0, 0, z_inner + 500)))
-    magnet_lower = magnet.cut(cutter_slab)
+    magnet_lower = magnet_cleared.cut(cutter_slab)
     cs_face = max(
         (f for f in magnet_lower.faces() if abs(f.center().Z - z_inner) < 0.1),
         key=lambda f: f.area,
@@ -151,9 +158,8 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     taper_frustrum = Solid.make_loft([w_inner, w_outer])
 
     with BuildPart() as cutter_bp:
-        add(magnet)
+        add(magnet_cleared)
         add(taper_frustrum)
-        offset(amount=cl / 2)  # cl/2 per side so insertion slot matches pocket clearance
     magnet_with_taper = cutter_bp.part
 
     # ── pocket = positioned magnet expanded by clearance ─────────────────────
