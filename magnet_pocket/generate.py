@@ -118,12 +118,15 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     # Inner station: bisect the magnet with a plane at z_inner; the cut face
     # carries the exact filleted profile (Z-edge fillets rounded corners).
     # Outer station: polygon + fillet_2d at z_outer — a uniform outward offset.
-    taper_in = ins["taper_in_mm"]
+    taper_in = ins["frustrum_depth_mm"]
     taper_len = ins["taper_len_mm"]
     lead_in_cl = ins["taper_expand_mm"]
     r0 = m["edge_radius_other_mm"]  # magnet corner radius (Z-edge fillet)
 
-    z_inner = m["axial_mm"] / 2 - taper_in  # +8
+    # z_inner is in the cutter's local frame (origin = insertion_Z in cell frame).
+    # frustrum_depth is measured back from the holder end face (H/2 in cell frame).
+    insertion_Z = ins["cutter_z_mm"]
+    z_inner = H / 2 - taper_in - insertion_Z
     z_outer = z_inner + taper_len  # +13
 
     # Bisect: cut everything above z_inner away and take the new flat face.
@@ -150,6 +153,7 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     with BuildPart() as cutter_bp:
         add(magnet)
         add(taper_frustrum)
+        offset(amount=cl / 2)  # cl/2 per side so insertion slot matches pocket clearance
     magnet_with_taper = cutter_bp.part
 
     # ── pocket = positioned magnet expanded by clearance ─────────────────────
@@ -183,45 +187,61 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
             fillet(end_arcs, fillet_r)
         add(pocket, mode=Mode.SUBTRACT)
         # ── axial insertion opening: tilted cutter through the +Z end face ────
-        # Pivot at the bore-side inner face at the BOTTOM of the cutter so the
-        # bottom inner edge stays on the bore wall regardless of tilt angle.
-        # Cutter centre is only 2 mm above the holder midplane (Z=0); the tilt
-        # is derived from the desired rim thickness at the holder face (Z=+12):
-        #   rim = R_o − outer_face − face_shift  →  face_shift = R_o − outer_face − rim_target
-        #   tilt = atan(face_shift / (H/2 − pivot_z))
-        insertion_Z = ins["cutter_z_mm"]
+        # Pivot at the pocket inner face (bore-side) so the inner edge at the
+        # pivot Z stays fixed.  Tilt is chosen so the inner rim at the end face
+        # (Z=H/2) equals rim_target_mm:
+        #   inner_rim = inset + sin(tilt) * face_to_pivot = rim_target
+        #   face_shift = rim_target - inset
+        #   tilt = atan(face_shift / face_to_pivot)
+        # insertion_Z already defined above (used for frustum placement).
         pivot_x = R_i + cl / 2 + inset  # pocket inner face (bore-side)
         pivot_z = insertion_Z - m["axial_mm"] / 2
         rim_target = ins["rim_target_mm"]
-        outer_face = magnet_r + m["radial_mm"] / 2 + cl / 2  # pocket outer face
-        face_shift = R_o - outer_face - rim_target  # = 1.2 mm
-        face_to_pivot = H / 2 - pivot_z  # = 20 mm
+        face_shift = rim_target - inset  # inward rim expansion at end face
+        face_to_pivot = H / 2 - pivot_z
         tilt_deg = math.degrees(math.atan(face_shift / face_to_pivot))
+        outer_face = magnet_r + m["radial_mm"] / 2 + cl / 2  # pocket outer face
         insertion_cutter = (
-            magnet_with_taper.moved(Location((magnet_r + cl, 0, insertion_Z)))
+            magnet_with_taper.moved(Location((magnet_r, 0, insertion_Z)))
             .moved(Location((-pivot_x, 0, -pivot_z)))
             .moved(Rotation(0, tilt_deg, 0))
             .moved(Location((pivot_x, 0, pivot_z)))
         )
         add(insertion_cutter, mode=Mode.SUBTRACT)
         add(bore_slot, mode=Mode.SUBTRACT)
-        # ── fillet all remaining sharp (linear) edges to 0.1 mm ──────────────
-        sharp = [
-            e for e in bp.edges() if e.geom_type == GeomType.LINE and e.length >= 0.1
+        # ── targeted fillets ──────────────────────────────────────────────────
+        # 1. Frustum opening rim: non-circular edges at the insertion end face.
+        frustum_lip = [
+            e for e in bp.edges()
+            if abs(e.center().Z - H / 2) < 0.5
+            and e.geom_type != GeomType.CIRCLE
+            and abs(e.center().Y) < 3.0  # exclude tangential face boundary edges
         ]
-        if sharp:
+        if frustum_lip:
             try:
-                fillet(sharp, 0.1)
+                fillet(frustum_lip, 0.2)
             except Exception:
-                # Batch failed (face-consumption); apply one at a time, skip failures
-                skipped = 0
-                for e in sharp:
+                for e in frustum_lip:
+                    try:
+                        fillet([e], 0.2)
+                    except Exception:
+                        pass
+        # 2. Long edges on the bore-side pocket inner face (0.1 mm).
+        pocket_inner_r = R_i + inset
+        inner_long = [
+            e for e in bp.edges()
+            if abs(math.hypot(e.center().X, e.center().Y) - pocket_inner_r) < 0.1
+            and e.length > m["axial_mm"] * 0.4
+        ]
+        if inner_long:
+            try:
+                fillet(inner_long, 0.1)
+            except Exception:
+                for e in inner_long:
                     try:
                         fillet([e], 0.1)
                     except Exception:
-                        skipped += 1
-                if skipped:
-                    print(f"  fillet: skipped {skipped}/{len(sharp)} edges")
+                        pass
 
     return bp.part, positioned_magnet
 

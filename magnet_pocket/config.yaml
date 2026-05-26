@@ -13,11 +13,11 @@ holder:
   thickness_mm: 8.0
   end_face_mm: 2.0
   clearance_mm: 0.1  # Each side will half of this clearance.
-  inset_mm: 0.5  # Radial gap between bore (R_i) and pocket inner face.
+  inset_mm: 0.35  # Radial gap between bore (R_i) and pocket inner face.
 # Tilted end-face insertion opening and lead-in frustum.
 insertion:
-  taper_in_mm: 2.0      # setback from +Z end face where frustum starts
+  frustrum_depth_mm: 4.0  # how far back from the holder end face the frustum starts
   taper_len_mm: 5.0     # axial length of the lead-in taper
   taper_expand_mm: 1.0  # expansion per side for the lead-in taper
-  cutter_z_mm: 2.0      # insertion cutter centre Z in cell frame
-  rim_target_mm: 1.6    # desired end-face rim thickness (mm)
+  cutter_z_mm: 4.0      # insertion cutter centre Z in cell frame
+  rim_target_mm: 1.0    # inner rim thickness at the end face (bore side)

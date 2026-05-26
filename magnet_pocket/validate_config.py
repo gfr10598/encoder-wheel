@@ -54,7 +54,7 @@ _REQUIRED_KEYS: dict[str, list[str]] = {
         "inset_mm",
     ],
     "insertion": [
-        "taper_in_mm",
+        "frustrum_depth_mm",
         "taper_len_mm",
         "taper_expand_mm",
         "cutter_z_mm",
