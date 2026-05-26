@@ -51,15 +51,14 @@ _REQUIRED_KEYS: dict[str, list[str]] = {
         "thickness_mm",
         "end_face_mm",
         "clearance_mm",
-        "bore_snap_mm",
+        "inset_mm",
     ],
-    "comb": [
-        "count",
-        "thickness_mm",
-        "axial_gap",
-        "clearance_mm",
-        "snap_overhang_mm",
-        "snap_type",
+    "insertion": [
+        "taper_in_mm",
+        "taper_len_mm",
+        "taper_expand_mm",
+        "cutter_z_mm",
+        "rim_target_mm",
     ],
 }
 
@@ -89,24 +88,13 @@ def validate(cfg: dict, verbose: bool = True) -> list[str]:
 
     m = cfg["magnet"]
     h = cfg["holder"]
-    c = cfg["comb"]
 
     R_i = h["ID_mm"] / 2
     R_o = R_i + h["thickness_mm"]
     W_i = math.pi * h["ID_mm"] / h["magnet_count"]  # arc width at bore
     H = m["axial_mm"] + 2 * h["end_face_mm"]  # cell axial height
-    tooth_pitch = H / (2 * c["count"])
-    # axial_gap is the design gap between adjacent teeth (not fit clearance)
-    tooth_width = tooth_pitch - c["axial_gap"]
-    outer_wall = h["thickness_mm"] - m["radial_mm"] - h["clearance_mm"]
-    tangential_needed = (
-        m["tangential_mm"]
-        + h["clearance_mm"]
-        + c[
-            "thickness_mm"
-        ]  # one tooth (interleaved; only one tooth present at any cross-section)
-        + c["clearance_mm"]
-    )
+    # outer wall = thickness minus magnet, full clearance, and inset
+    outer_wall = h["thickness_mm"] - m["radial_mm"] - h["clearance_mm"] - h["inset_mm"]
 
     failures: list[str] = []
 
@@ -117,12 +105,7 @@ def validate(cfg: dict, verbose: bool = True) -> list[str]:
         print(f"  R_o (outer radius)         = {R_o:.3f} mm")
         print(f"  W_i (arc width at bore)    = {W_i:.3f} mm")
         print(f"  H   (cell axial height)    = {H:.3f} mm")
-        print(f"  tooth pitch                = {tooth_pitch:.3f} mm")
-        print(f"  tooth width (after axial_gap) = {tooth_width:.3f} mm")
         print(f"  outer wall remaining       = {outer_wall:.3f} mm")
-        print(
-            f"  tangential space needed    = {tangential_needed:.3f} mm  (limit {W_i:.3f} mm)"
-        )
 
     if verbose:
         print("\nValidation checks:")
@@ -153,40 +136,8 @@ def validate(cfg: dict, verbose: bool = True) -> list[str]:
     check(
         "V4",
         "Tangential fit at bore",
-        tangential_needed <= W_i,
-        f"need {tangential_needed:.3f} mm,  have {W_i:.3f} mm  (slack {W_i - tangential_needed:.3f} mm)",
-        failures,
-    )
-
-    check(
-        "V5",
-        "Comb tooth width positive",
-        tooth_width > 0,
-        f"tooth width = pitch({tooth_pitch:.3f}) - axial_gap({c['axial_gap']}) = {tooth_width:.3f} mm",
-        failures,
-    )
-
-    check(
-        "V6",
-        "Comb tooth depth > clearance",
-        c["thickness_mm"] > c["clearance_mm"],
-        f"{c['thickness_mm']} > {c['clearance_mm']}?",
-        failures,
-    )
-
-    check(
-        "V7",
-        "Snap ≤ half tooth depth",
-        c["snap_overhang_mm"] <= c["thickness_mm"] / 2,
-        f"{c['snap_overhang_mm']} ≤ {c['thickness_mm']/2}?",
-        failures,
-    )
-
-    check(
-        "V8",
-        "Bore snap ≤ edge radius",
-        h["bore_snap_mm"] <= m["edge_radius_other_mm"],
-        f"bore_snap {h['bore_snap_mm']} ≤ edge_radius_other {m['edge_radius_other_mm']}?",
+        m["tangential_mm"] + h["clearance_mm"] <= W_i,
+        f"need {m['tangential_mm'] + h['clearance_mm']:.3f} mm,  have {W_i:.3f} mm  (slack {W_i - m['tangential_mm'] - h['clearance_mm']:.3f} mm)",
         failures,
     )
 
@@ -214,27 +165,6 @@ def validate(cfg: dict, verbose: bool = True) -> list[str]:
         "End face positive",
         h["end_face_mm"] > 0,
         f"end_face_mm = {h['end_face_mm']}",
-        failures,
-    )
-
-    valid_snap_types = ("full", "edges", "corners")
-    snap_type = c.get("snap_type", "<missing>")
-    check(
-        "V13",
-        "snap_type valid",
-        snap_type in valid_snap_types,
-        f"snap_type = '{snap_type}'  (allowed: {valid_snap_types})",
-        failures,
-    )
-
-    snap_space_available = W_i - m["tangential_mm"]
-    snap_space_needed = c["thickness_mm"] + c["snap_overhang_mm"] + c["clearance_mm"]
-    check(
-        "V14",
-        "Snap deflection clears adjacent magnet",
-        snap_space_available > snap_space_needed,
-        f"(W_i - tangential) = {snap_space_available:.3f} mm  >  "
-        f"tooth({c['thickness_mm']}) + overhang({c['snap_overhang_mm']}) + clearance({c['clearance_mm']}) = {snap_space_needed:.3f}?",
         failures,
     )
 

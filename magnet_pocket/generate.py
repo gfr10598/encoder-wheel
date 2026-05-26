@@ -88,6 +88,7 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     """
     m = cfg["magnet"]
     h = cfg["holder"]
+    ins = cfg["insertion"]
 
     R_i = h["ID_mm"] / 2
     R_o = R_i + h["thickness_mm"]
@@ -106,18 +107,20 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
 
     # ── positioned magnet ─────────────────────────────────────────────────────
     magnet = make_magnet(cfg)
-    # Shift magnet outward by cl so the pocket inner face (magnet face − cl)
-    # lands exactly on the bore surface (R_i), tangent to the ID.
-    magnet_r = R_i + m["radial_mm"] / 2 + cl
+    # inset keeps the pocket inner face inset_mm above R_i, leaving a
+    # printable wall between the bore and the pocket floor.
+    # cl/2 per side so the total pocket clearance equals clearance_mm.
+    inset = h["inset_mm"]
+    magnet_r = R_i + m["radial_mm"] / 2 + cl / 2 + inset
     positioned_magnet = magnet.moved(Location((magnet_r, 0, 0)))
 
     # ── lead-in frustrum fused onto the magnet in its local frame ────────────
     # Inner station: bisect the magnet with a plane at z_inner; the cut face
     # carries the exact filleted profile (Z-edge fillets rounded corners).
     # Outer station: polygon + fillet_2d at z_outer — a uniform outward offset.
-    taper_in = 2.0  # mm inside from +Z end (local Z = +8)
-    taper_len = 5.0  # mm along axis to the wide end (local Z = +13)
-    lead_in_cl = 1.0  # mm expansion on each side
+    taper_in = ins["taper_in_mm"]
+    taper_len = ins["taper_len_mm"]
+    lead_in_cl = ins["taper_expand_mm"]
     r0 = m["edge_radius_other_mm"]  # magnet corner radius (Z-edge fillet)
 
     z_inner = m["axial_mm"] / 2 - taper_in  # +8
@@ -152,8 +155,19 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     # ── pocket = positioned magnet expanded by clearance ─────────────────────
     with BuildPart() as pocket_bp:
         add(positioned_magnet)
-        offset(amount=cl)
+        offset(amount=cl / 2)  # cl/2 per side → total pocket clearance = clearance_mm
     pocket = pocket_bp.part
+
+    # ── bore slot: pre-filleted so cavity corners are rounded after subtraction
+    bore_slot_depth = 4.0  # mm into the wall
+    with BuildPart() as slot_bp:
+        Box(
+            bore_slot_depth * 2,  # straddles bore: depth outside + depth inside
+            4.0,                  # tangential: 4 mm centred on pocket
+            m["axial_mm"],        # axial: full magnet length
+        )
+        fillet(slot_bp.edges(), 0.5)
+    bore_slot = slot_bp.part.moved(Location((R_i, 0, 0)))
 
     # ── sector with filleted end arcs, then pocket subtracted ─────────────────
     end_z = H / 2
@@ -175,11 +189,11 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
         # is derived from the desired rim thickness at the holder face (Z=+12):
         #   rim = R_o − outer_face − face_shift  →  face_shift = R_o − outer_face − rim_target
         #   tilt = atan(face_shift / (H/2 − pivot_z))
-        insertion_Z = 2.0  # cutter centre Z in cell frame
-        pivot_x = R_i + cl  # bore-side face (radial)
-        pivot_z = insertion_Z - m["axial_mm"] / 2  # = −8 (cutter bottom)
-        rim_target = 1.6  # desired end-face rim (mm)
-        outer_face = magnet_r + cl + m["radial_mm"] / 2  # = 56.0 mm
+        insertion_Z = ins["cutter_z_mm"]
+        pivot_x = R_i + cl / 2 + inset  # pocket inner face (bore-side)
+        pivot_z = insertion_Z - m["axial_mm"] / 2
+        rim_target = ins["rim_target_mm"]
+        outer_face = magnet_r + m["radial_mm"] / 2 + cl / 2  # pocket outer face
         face_shift = R_o - outer_face - rim_target  # = 1.2 mm
         face_to_pivot = H / 2 - pivot_z  # = 20 mm
         tilt_deg = math.degrees(math.atan(face_shift / face_to_pivot))
@@ -190,6 +204,7 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
             .moved(Location((pivot_x, 0, pivot_z)))
         )
         add(insertion_cutter, mode=Mode.SUBTRACT)
+        add(bore_slot, mode=Mode.SUBTRACT)
         # ── fillet all remaining sharp (linear) edges to 0.1 mm ──────────────
         sharp = [
             e for e in bp.edges() if e.geom_type == GeomType.LINE and e.length >= 0.1
