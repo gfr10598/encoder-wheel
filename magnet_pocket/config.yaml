@@ -8,8 +8,8 @@ magnet:
 # These are the frame specs.
 holder:
   material: PETG
-  magnet_count: 32
-  ID_mm: 132.4
+  magnet_count: 36
+  ID_mm: 131.0  # Inner diameter of the holder (bore diameter).
   thickness_mm: 8.0
   end_face_mm: 2.0
   clearance_mm: 0.1  # Each side will half of this clearance.

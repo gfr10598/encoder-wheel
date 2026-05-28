@@ -19,6 +19,7 @@ Usage
 
 from __future__ import annotations
 
+import argparse
 import math
 import sys
 from pathlib import Path
@@ -28,6 +29,7 @@ from build123d import (
     Axis,
     Box,
     BuildPart,
+    Compound,
     Edge,
     Face,
     GeomType,
@@ -71,6 +73,240 @@ def make_magnet(cfg: dict, shrink: float = 0.0) -> Solid:
             m["edge_radius_other_mm"],
         )
     return bp.part
+
+
+# ── sector-wall symmetry check ────────────────────────────────────────────────
+
+
+def _radial(face: Face) -> float:
+    """Distance of face centroid from the Z axis."""
+    c = face.center()
+    return math.hypot(c.X, c.Y)
+
+
+def _sector_walls(cell: Solid) -> tuple[list[Face], list[Face]]:
+    """Return (left_walls, right_walls) sorted by radial centroid distance.
+
+    Sector boundary faces are planar and have normals lying in the XY plane
+    (|normal.Z| ≈ 0).  Left walls have centroid Y < 0; right walls Y > 0.
+    """
+    left: list[Face] = []
+    right: list[Face] = []
+    for f in cell.faces():
+        if f.geom_type != GeomType.PLANE:
+            continue
+        try:
+            nz = f.normal_at(f.center()).Z
+        except Exception:
+            continue
+        if abs(nz) > 0.05:  # end-cap or near-horizontal face — skip
+            continue
+        cy = f.center().Y
+        if cy < -0.01:
+            left.append(f)
+        elif cy > 0.01:
+            right.append(f)
+    left.sort(key=_radial)
+    right.sort(key=_radial)
+    return left, right
+
+
+def check_sector_symmetry(cell: Solid, cfg: dict) -> None:
+    """Assert adjacent cells will mate flush.
+
+    Step 1 — structural check
+      • Each sector wall must contain the same number of face fragments k
+        (2k total across both walls) and every fragment centroid must lie
+        within the ring's radial bounds [R_i, R_o].
+
+    Step 2 — geometric check on adjacent cells
+      Rotates a copy of the cell by one span and compares the right wall of
+      the original against the left wall of the rotated copy, using:
+        • total face area
+        • area-weighted centroid (XYZ)
+        • area-weighted mean normal direction
+      Faces within each wall group are sorted by radial centroid distance
+      before comparison so the check is insensitive to fragment ordering.
+    """
+    h = cfg["holder"]
+    R_i = h["ID_mm"] / 2
+    R_o = R_i + h["thickness_mm"]
+    span_deg = 360.0 / h["magnet_count"]
+
+    left_faces, right_faces = _sector_walls(cell)
+
+    # ── Step 1: 2k faces within ring bounds ──────────────────────────────────
+    k_left, k_right = len(left_faces), len(right_faces)
+    if k_left != k_right:
+        raise AssertionError(
+            f"Sector wall fragment counts differ: left={k_left}, right={k_right} "
+            f"(expected equal k for 2k total)"
+        )
+    if k_left == 0:
+        raise AssertionError("No sector wall faces found")
+    print(f"  · sector walls: 2×{k_left} = {2*k_left} face fragments")
+
+    for side, faces in (("left", left_faces), ("right", right_faces)):
+        for i, f in enumerate(faces):
+            r = _radial(f)
+            if not (R_i - 0.5 <= r <= R_o + 0.5):
+                raise AssertionError(
+                    f"{side} wall face {i}: centroid radius {r:.3f} mm "
+                    f"outside ring bounds [{R_i:.3f}, {R_o:.3f}]"
+                )
+        radii = [_radial(f) for f in faces]
+        print(
+            f"  · {side:5s} wall radii (sorted): "
+            + "  ".join(f"{r:.2f}" for r in radii)
+        )
+
+    # ── Step 2: compare left wall vs right wall of cell 0 ────────────────────
+    # Cell 1 = cell 0 rotated by span_deg; its left wall is cell 0's left wall
+    # rotated into the same angular position as cell 0's right wall.  Mating
+    # requires the two walls to be congruent.  We verify this by comparing
+    # left_faces and right_faces of cell 0 directly (Y-symmetry check):
+    #   • equal total area
+    #   • equal centroid radii (sorted fragment-by-fragment)
+    #   • normals are Y-mirror images of each other (dot of right with Y-flipped
+    #     left ≈ +1)
+
+    def _stats(faces: list[Face]) -> tuple[float, list[float], tuple]:
+        total_area = sum(f.area for f in faces)
+        nx_sum = sum(f.normal_at(f.center()).X * f.area for f in faces)
+        ny_sum = sum(f.normal_at(f.center()).Y * f.area for f in faces)
+        nz_sum = sum(f.normal_at(f.center()).Z * f.area for f in faces)
+        mag = math.sqrt(nx_sum**2 + ny_sum**2 + nz_sum**2)
+        radii = [_radial(f) for f in faces]  # already sorted by _sector_walls
+        return total_area, radii, (nx_sum / mag, ny_sum / mag, nz_sum / mag)
+
+    r_area, r_radii, r_nrm = _stats(right_faces)
+    l_area, l_radii, l_nrm = _stats(left_faces)
+
+    if abs(r_area - l_area) > 0.01:
+        raise AssertionError(
+            f"Left/right wall areas differ: left={l_area:.4f}, right={r_area:.4f} mm² "
+            f"— cell is not Y-symmetric; adjacent cells will not mate flush"
+        )
+    for i, (lr, rr) in enumerate(zip(l_radii, r_radii)):
+        if abs(lr - rr) > 0.1:
+            raise AssertionError(
+                f"Fragment {i} centroid radii differ: "
+                f"left={lr:.3f}, right={rr:.3f} mm"
+            )
+    # Right normal · Y-flipped left normal should be ≈ +1 for mirror symmetry
+    dot_mirror = r_nrm[0] * l_nrm[0] + r_nrm[1] * (-l_nrm[1]) + r_nrm[2] * l_nrm[2]
+    if dot_mirror < 0.99:
+        raise AssertionError(
+            f"Wall normals not Y-mirror-symmetric: dot={dot_mirror:.4f} (expect ≈ 1)"
+        )
+    print(
+        f"  ✓ sector walls mate: area={r_area:.4f} mm²  "
+        f"radii={[f'{r:.2f}' for r in r_radii]}  "
+        f"mirror-dot={dot_mirror:.4f}"
+    )
+
+
+# ── arc assembly ──────────────────────────────────────────────────────────────
+
+
+def make_index_patch(
+    cell: Solid,
+    cfg: dict,
+    z_center: float = 7.0,
+    height_mm: float = 3.0,
+    depth_mm: float = 0.4,
+) -> tuple[Solid, Solid]:
+    """Cut a cylindrical arc recess from the outer face of *cell*.
+
+    The recess spans the full angular width of one cell and is *depth_mm* deep
+    (radially inward from R_o).  It sits at *z_center* to stay clear of the
+    ±4 mm groove.
+
+    Returns
+    -------
+    cell_with_pocket : cell body with the recess subtracted
+    patch            : cylindrical arc solid that fills the recess
+    """
+    h = cfg["holder"]
+    R_o = h["ID_mm"] / 2 + h["thickness_mm"]
+    total = h["magnet_count"]
+    span_deg = 360.0 / total
+
+    b_pts = [
+        (R_o - depth_mm, 0.0, z_center - height_mm / 2),
+        (R_o, 0.0, z_center - height_mm / 2),
+        (R_o, 0.0, z_center + height_mm / 2),
+        (R_o - depth_mm, 0.0, z_center + height_mm / 2),
+    ]
+    b_edges = [Edge.make_line(b_pts[i], b_pts[(i + 1) % 4]) for i in range(4)]
+    patch = Solid.revolve(Face(Wire(b_edges)), span_deg, Axis.Z)
+    patch = patch.moved(Rotation(0, 0, -span_deg / 2))
+
+    return cell - patch, patch
+
+
+def assemble_arc(
+    cell: Solid, cfg: dict, n_cells: int
+) -> tuple[list[Solid], list[Solid], list[Solid], list[Solid]]:
+    """Place *n_cells* copies around the ring at their correct angular positions.
+
+    Returns
+    -------
+    group_a : even-indexed cells (0, 2, 4, …)
+    group_b : odd-indexed cells (1, 3, 5, …)
+    group_c : cylindrical arc patch on the quarter-position landmark cell
+    group_d : cylindrical arc patch on the half-position landmark cell
+              (groups c/d non-empty only when total % 4 == 0 and n_cells ≥ total/2)
+
+    Landmark cells stay in their even/odd group but have a cylindrical arc
+    recess on their outer face; the matching patch goes into group_c or group_d.
+    """
+    total = cfg["holder"]["magnet_count"]
+    span_deg = 360.0 / total
+
+    # Map cell index → patch group name
+    landmark_map: dict[int, str] = {}
+    if total % 4 == 0 and n_cells >= total // 2:
+        quarter_idx = total // 4 - 1
+        half_idx = total // 2 - 1
+        if quarter_idx < n_cells:
+            landmark_map[quarter_idx] = "c"
+        if half_idx < n_cells:
+            landmark_map[half_idx] = "d"
+
+    # Pre-build the patched cell variant once (shared geometry, rotated per use)
+    cell_patched, patch_template = make_index_patch(cell, cfg)
+
+    group_a: list[Solid] = []
+    group_b: list[Solid] = []
+    group_c: list[Solid] = []
+    group_d: list[Solid] = []
+    patch_groups: dict[str, list[Solid]] = {"c": group_c, "d": group_d}
+
+    for i in range(n_cells):
+        rot = Rotation(0, 0, i * span_deg)
+        if i in landmark_map:
+            body = cell_patched.moved(rot)
+            patch = patch_template.moved(rot)
+            if i % 2 == 0:
+                body.label = f"a_{i}"
+                group_a.append(body)
+            else:
+                body.label = f"b_{i}"
+                group_b.append(body)
+            pg = landmark_map[i]
+            patch.label = f"{pg}_{i}"
+            patch_groups[pg].append(patch)
+        elif i % 2 == 0:
+            placed = cell.moved(rot)
+            placed.label = f"a_{i}"
+            group_a.append(placed)
+        else:
+            placed = cell.moved(rot)
+            placed.label = f"b_{i}"
+            group_b.append(placed)
+
+    return group_a, group_b, group_c, group_d
 
 
 # ── cell ──────────────────────────────────────────────────────────────────────
@@ -173,8 +409,8 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     with BuildPart() as slot_bp:
         Box(
             bore_slot_depth * 2,  # straddles bore: depth outside + depth inside
-            4.0,                  # tangential: 4 mm centred on pocket
-            m["axial_mm"],        # axial: full magnet length
+            4.0,  # tangential: 4 mm centred on pocket
+            m["axial_mm"],  # axial: full magnet length
         )
         fillet(slot_bp.edges(), 0.5)
     bore_slot = slot_bp.part.moved(Location((R_i, 0, 0)))
@@ -215,10 +451,61 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
         )
         add(insertion_cutter, mode=Mode.SUBTRACT)
         add(bore_slot, mode=Mode.SUBTRACT)
+        # ── arc groove on outer face (follows ring curvature) ─────────────────
+        # Floor clears the taper frustum outer edge (outer_face + lead_in_cl)
+        # by groove_clearance mm.  Walls taper 30° outward so the opening is
+        # wider than the floor.  Revolved 360° so it follows the arc of the ring.
+        groove_clearance = 0.4
+        groove_axial_mm = 8.0
+        groove_tilt_deg = 30.0
+        groove_floor_r = outer_face + lead_in_cl + groove_clearance
+        groove_depth = R_o - groove_floor_r
+        if groove_depth > 0:
+            extra = 5.0  # extends past R_o to break through outer face
+            taper = groove_depth * math.tan(math.radians(groove_tilt_deg))
+            half_bot = groove_axial_mm / 2
+            half_top = half_bot + taper
+            # Trapezoid profile in the XZ plane (y=0); revolve 360° → ring cutter
+            g_pts = [
+                (groove_floor_r, 0, -half_bot),
+                (R_o + extra, 0, -half_top),
+                (R_o + extra, 0, +half_top),
+                (groove_floor_r, 0, +half_bot),
+            ]
+            g_edges = [Edge.make_line(g_pts[i], g_pts[(i + 1) % 4]) for i in range(4)]
+            groove_ring = Solid.revolve(Face(Wire(g_edges)), 360.0, Axis.Z)
+            add(groove_ring, mode=Mode.SUBTRACT)
+            # Fillet bottom edges (floor-wall junction) and top edges (opening rim)
+            groove_fillet_r = 0.5
+            groove_btm = [
+                e
+                for e in bp.edges()
+                if abs(abs(e.center().Z) - half_bot) < 0.2
+                and abs(math.hypot(e.center().X, e.center().Y) - groove_floor_r) < 0.5
+                and e.geom_type == GeomType.CIRCLE
+            ]
+            groove_top = [
+                e
+                for e in bp.edges()
+                if 3.5 < abs(e.center().Z) < half_top + 1.0
+                and abs(math.hypot(e.center().X, e.center().Y) - R_o) < 0.5
+                and e.geom_type == GeomType.CIRCLE
+            ]
+            for edge_list in (groove_btm, groove_top):
+                if edge_list:
+                    try:
+                        fillet(edge_list, groove_fillet_r)
+                    except Exception:
+                        for e in edge_list:
+                            try:
+                                fillet([e], groove_fillet_r)
+                            except Exception:
+                                pass
         # ── targeted fillets ──────────────────────────────────────────────────
         # 1. Frustum opening rim: non-circular edges at the insertion end face.
         frustum_lip = [
-            e for e in bp.edges()
+            e
+            for e in bp.edges()
             if abs(e.center().Z - H / 2) < 0.5
             and e.geom_type != GeomType.CIRCLE
             and abs(e.center().Y) < 3.0  # exclude tangential face boundary edges
@@ -235,7 +522,8 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
         # 2. Long edges on the bore-side pocket inner face (0.1 mm).
         pocket_inner_r = R_i + inset
         inner_long = [
-            e for e in bp.edges()
+            e
+            for e in bp.edges()
             if abs(math.hypot(e.center().X, e.center().Y) - pocket_inner_r) < 0.1
             and e.length > m["axial_mm"] * 0.4
         ]
@@ -252,10 +540,227 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
     return bp.part, positioned_magnet
 
 
+# ── 3MF export ───────────────────────────────────────────────────────────────
+
+_GROUP_META: dict[str, tuple[str, tuple[int, int, int]]] = {
+    "a": ("North", (230, 230, 230)),
+    "b": ("South", (30, 30, 30)),
+    "c": ("Index_Q", (220, 50, 50)),
+    "d": ("Index_H", (50, 80, 220)),
+}
+
+
+def _export_3mf(groups: dict[str, list[Solid]], stem: str, out_dir: Path) -> None:
+    """Export all non-empty groups as a single multi-material 3MF file."""
+    import lib3mf  # type: ignore[import]
+
+    wrapper = lib3mf.Wrapper()
+    model = wrapper.CreateModel()
+    model.SetUnit(lib3mf.ModelUnit.MilliMeter)
+
+    mat_group = model.AddBaseMaterialGroup()
+    mat_rid = mat_group.GetUniqueResourceID()
+
+    mat_mid: dict[str, int] = {}
+    for key, (label, (r, g, b)) in _GROUP_META.items():
+        if groups.get(key):
+            mat_mid[key] = mat_group.AddMaterial(
+                label, lib3mf.Color(Red=r, Green=g, Blue=b, Alpha=255)
+            )
+
+    for key, grp in groups.items():
+        if not grp:
+            continue
+        label = _GROUP_META[key][0]
+        compound = Compound(children=grp)
+        raw_verts, raw_tris = compound.tessellate(0.05, 0.5)
+
+        positions: list = []
+        for v in raw_verts:
+            p = lib3mf.Position()
+            p.Coordinates[0] = float(v.X)
+            p.Coordinates[1] = float(v.Y)
+            p.Coordinates[2] = float(v.Z)
+            positions.append(p)
+
+        triangles: list = []
+        for t in raw_tris:
+            tri = lib3mf.Triangle()
+            tri.Indices[0] = t[0]
+            tri.Indices[1] = t[1]
+            tri.Indices[2] = t[2]
+            triangles.append(tri)
+
+        mesh = model.AddMeshObject()
+        mesh.SetName(label)
+        mesh.SetGeometry(positions, triangles)
+        mesh.SetObjectLevelProperty(mat_rid, mat_mid[key])
+        model.AddBuildItem(mesh, wrapper.GetIdentityTransform())
+
+    out_path = out_dir / f"{stem}.3mf"
+    writer = model.QueryWriter("3mf")
+    writer.WriteToFile(str(out_path))
+    print(f"Exported → {out_path}")
+
+
+def _make_surplus_cutter(cfg: dict, n_keep: int, n_total: int) -> Solid:
+    """Solid sector covering cell positions [n_keep, n_total) for use as a cut tool.
+
+    The sector starts at the boundary between cell n_keep-1 and cell n_keep
+    (i.e. at (n_keep - 0.5) * span_deg) and sweeps to the boundary after cell
+    n_total-1, covering the full radial and axial extent of the ring.
+    """
+    h = cfg["holder"]
+    m = cfg["magnet"]
+    total = h["magnet_count"]
+    span_deg = 360.0 / total
+    H_big = (m["axial_mm"] + 2 * h["end_face_mm"]) * 4
+    R_big = h["ID_mm"] / 2 + h["thickness_mm"] + 20.0
+
+    arc_span = (n_total - n_keep) * span_deg
+    start_deg = (n_keep - 0.5) * span_deg
+
+    xz_pts = [(0.0, -H_big / 2), (R_big, -H_big / 2), (R_big, H_big / 2), (0.0, H_big / 2)]
+    pts_3d = [(x, 0.0, z) for x, z in xz_pts]
+    edges = [Edge.make_line(pts_3d[i], pts_3d[(i + 1) % 4]) for i in range(4)]
+    sector = Solid.revolve(Face(Wire(edges)), arc_span, Axis.Z)
+    return sector.moved(Rotation(0, 0, start_deg))
+
+
+def _fuse_arc_doubling(cell: Solid, cfg: dict, n_cells: int) -> Solid:
+    """Build an arc of n_cells via the doubling strategy.
+
+    Algorithm
+    ---------
+    1. Pick a base group size: 5 if n_cells % 5 == 0, else 3 if n_cells % 3 == 0,
+       else 1.
+    2. Build the base group by placing ``base`` identical cells at consecutive
+       angular positions and fusing them sequentially (small count, trivially fast).
+    3. Double: copy the current solid, rotate it by ``count`` cell-pitches, fuse.
+       Repeat until ``count >= n_cells``.
+    4. If ``count > n_cells``, cut away the surplus with a solid sector.
+
+    Each fuse is validated immediately; raises ValueError on disconnected bodies.
+    No landmark patches or North/South group distinctions are applied.
+    """
+    total = cfg["holder"]["magnet_count"]
+    span_deg = 360.0 / total
+
+    # ── choose base group size ────────────────────────────────────────────────
+    if n_cells % 5 == 0:
+        base = 5
+    elif n_cells % 3 == 0:
+        base = 3
+    else:
+        base = 1
+
+    # ── build base group ─────────────────────────────────────────────────────
+    if base == 1:
+        current = cell
+        count = 1
+    else:
+        pieces = [cell.moved(Rotation(0, 0, i * span_deg)) for i in range(base)]
+        current = pieces[0]
+        for p in pieces[1:]:
+            current = current.fuse(p)
+            n_b = len(current.solids())
+            if n_b != 1:
+                raise ValueError(
+                    f"Base group fuse produced {n_b} bodies at base-{base}; "
+                    "check for a gap between adjacent cells"
+                )
+        count = base
+        print(f"  Base group of {base}: 1 solid OK")
+
+    # ── doubling loop ─────────────────────────────────────────────────────────
+    level = 0
+    while count < n_cells:
+        copy = current.moved(Rotation(0, 0, count * span_deg))
+        current = current.fuse(copy)
+        count *= 2
+        level += 1
+        n_b = len(current.solids())
+        if n_b != 1:
+            raise ValueError(
+                f"Doubling level {level}: fuse produced {n_b} bodies at count={count}; "
+                "check for a gap at the join"
+            )
+        print(f"  Level {level}: {count} cells — 1 solid OK")
+
+    # ── trim surplus ──────────────────────────────────────────────────────────
+    if count > n_cells:
+        surplus = count - n_cells
+        print(f"  Cutting {surplus} surplus cells (count={count} → {n_cells})...")
+        cutter = _make_surplus_cutter(cfg, n_cells, count)
+        current = current.cut(cutter)
+        n_b = len(current.solids())
+        if n_b != 1:
+            raise ValueError(
+                f"After cut, got {n_b} bodies; expected 1. "
+                "The cut boundary may not be clean."
+            )
+        print("  Cut OK — 1 solid body")
+
+    return current
+
+
+def _fuse_all(solids: list[Solid]) -> Solid:
+    """Boolean-union all solids into one using a tree reduction.
+
+    Pairs up solids at each level so each individual operation stays small,
+    giving O(log n) depth instead of O(n).  Warns if the result contains more
+    than one disconnected body, which indicates gaps between adjacent cells.
+    """
+    if not solids:
+        raise ValueError("_fuse_all: no solids provided")
+    layer = list(solids)
+    n_total = len(layer)
+    print(f"  Fusing {n_total} solids (tree reduction)...")
+    level = 0
+    while len(layer) > 1:
+        next_layer = []
+        for i in range(0, len(layer) - 1, 2):
+            fused = layer[i].fuse(layer[i + 1])
+            n_bodies = len(fused.solids())
+            if n_bodies != 1:
+                raise ValueError(
+                    f"  level {level} pair {i//2}: fuse produced {n_bodies} "
+                    "disconnected bodies — check for a gap between adjacent cells"
+                )
+            next_layer.append(fused)
+        if len(layer) % 2 == 1:
+            next_layer.append(layer[-1])
+        level += 1
+        layer = next_layer
+    result = layer[0]
+    print(f"  Fuse OK — 1 solid body ({level} levels)")
+    return result
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate magnet pocket cells")
+    parser.add_argument(
+        "--cells",
+        type=int,
+        default=None,
+        metavar="N",
+        help="assemble N adjacent cells into an arc (exports arc<N>_<total>.step)",
+    )
+    parser.add_argument(
+        "--fuse-all",
+        action="store_true",
+        help="boolean-union all cells into one solid and export an extra *_fused.step",
+    )
+    parser.add_argument(
+        "--export",
+        action="store_true",
+        help="write STEP files to output/ (default: show in OCP viewer only)",
+    )
+    args = parser.parse_args()
+
     cfg = load_config()
 
     sys.path.insert(0, str(Path(__file__).parent))
@@ -266,32 +771,107 @@ def main() -> None:
         print(f"\nConfig validation failed: {', '.join(failures)}")
         sys.exit(1)
 
+    total = cfg["holder"]["magnet_count"]
+    out_dir = Path(__file__).parent / "output"
+    out_dir.mkdir(exist_ok=True)
+
     print("\nBuilding cell...")
     cell, magnet = make_cell(cfg)
 
-    try:
-        from ocp_vscode import Camera, show, set_port  # type: ignore[import]
+    if args.cells is not None:
+        n = args.cells
+        if not (1 <= n <= total):
+            print(f"--cells must be 1–{total}; got {n}")
+            sys.exit(1)
 
-        set_port(3939)
-        bb = cell.bounding_box()
-        c = bb.center()
-        view_offset = Location((-c.X, -c.Y, -c.Z))
-        show(
-            cell.moved(view_offset),
-            magnet.moved(view_offset),
-            names=["cell", "magnet"],
-            colors=["#6baed6", "#cccccc"],
-            alphas=[0.7, 1.0],
-            reset_camera=Camera.CENTER,
-        )
-    except ImportError:
-        pass
+        print("Checking sector symmetry...")
+        check_sector_symmetry(cell, cfg)
 
-    out_dir = Path(__file__).parent / "output"
-    out_dir.mkdir(exist_ok=True)
-    export_step(cell, str(out_dir / "cell.step"))
-    export_step(magnet, str(out_dir / "magnet.step"))
-    print(f"Exported → {out_dir}/")
+        stem = f"arc_ID{cfg['holder']['ID_mm']:g}mm_{n}_{total}"
+
+        if args.fuse_all:
+            print(f"Building fused arc {n}/{total} via doubling...")
+            fused = _fuse_arc_doubling(cell, cfg, n)
+
+            try:
+                from ocp_vscode import Camera, show, set_port  # type: ignore[import]
+
+                set_port(3939)
+                show(fused, names=["fused_arc"], reset_camera=Camera.CENTER)
+            except ImportError:
+                pass
+
+            if args.export:
+                fused_stem = stem + "_fused"
+                _export_3mf({"a": [fused]}, fused_stem, out_dir)
+                fused_path = out_dir / f"{fused_stem}.step"
+                export_step(fused, str(fused_path))
+                print(f"Exported → {fused_path}")
+
+        else:
+            print(f"Assembling arc {n}/{total}...")
+            group_a, group_b, group_c, group_d = assemble_arc(cell, cfg, n)
+            groups = {"a": group_a, "b": group_b, "c": group_c, "d": group_d}
+            for name, grp in groups.items():
+                n_grp = len(grp)
+                print(f"  group {name}: {n_grp} {'cell' if n_grp == 1 else 'cells'}")
+
+            try:
+                from ocp_vscode import Camera, show, set_port  # type: ignore[import]
+
+                set_port(3939)
+                show_objs = []
+                show_names = []
+                show_colors = []
+                ocp_labels = {"a": "North", "b": "South", "c": "Index_Q", "d": "Index_H"}
+                for grp_name, grp_solids, color, alpha in [
+                    ("a", group_a, "#ffffff", 0.95),
+                    ("b", group_b, "#000000", 1.0),
+                    ("c", group_c, "#ff0000", 1.0),
+                    ("d", group_d, "#0000ff", 1.0),
+                ]:
+                    if grp_solids:
+                        show_objs.append(Compound(children=grp_solids))
+                        show_names.append(ocp_labels[grp_name])
+                        show_colors.append(color)
+                show(
+                    *show_objs,
+                    names=show_names,
+                    colors=show_colors,
+                    alphas=[0.95 if n == "group_a" else 1.0 for n in show_names],
+                    reset_camera=Camera.CENTER,
+                )
+            except ImportError:
+                pass
+
+            if args.export:
+                _export_3mf(groups, stem, out_dir)
+
+    else:
+        try:
+            from ocp_vscode import Camera, show, set_port  # type: ignore[import]
+
+            set_port(3939)
+            bb = cell.bounding_box()
+            c = bb.center()
+            view_offset = Location((-c.X, -c.Y, -c.Z))
+            show(
+                cell.moved(view_offset),
+                magnet.moved(view_offset),
+                names=["cell", "magnet"],
+                colors=["#6baed6", "#cccccc"],
+                alphas=[0.7, 1.0],
+                reset_camera=Camera.CENTER,
+            )
+        except ImportError:
+            pass
+
+        if args.export:
+            id_mm = cfg["holder"]["ID_mm"]
+            stem = f"ID{id_mm:g}mm"
+            export_step(cell, str(out_dir / f"cell_{stem}.step"))
+            export_step(magnet, str(out_dir / f"magnet_{stem}.step"))
+            print(f"Exported → {out_dir}/")
 
 
 if __name__ == "__main__":
