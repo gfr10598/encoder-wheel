@@ -507,7 +507,7 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid, list]:
         # on the magnet face.  Placed at Y=0 (centred on the pocket).
         ph_d = 3.0
         ph_r = ph_d / 2
-        ph_z = m["axial_mm"] / 2 - ph_r   # top of hole flush with magnet top face
+        ph_z = m["axial_mm"] / 2 - ph_r - 1.0  # 1 mm below magnet top face
         ph_length = R_o - outer_face + ph_r + 2.0  # through OD wall + margin
         press_hole = (
             Solid.make_cylinder(ph_r, ph_length)
@@ -570,6 +570,25 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid, list]:
                 for e in inner_long:
                     try:
                         fillet([e], 0.1)
+                    except Exception:
+                        pass
+        # 3. Press-hole entry rim on the OD surface only — the inner rim sits on
+        #    the angled insertion-cutter face at this Z and cannot be cleanly filleted.
+        ph_fillet = 0.2
+        press_rims = [
+            e
+            for e in bp.edges()
+            if abs(e.center().Z - ph_z) < ph_r + 0.5
+            and abs(e.center().Y) < ph_r + 0.5
+            and abs(math.hypot(e.center().X, e.center().Y) - R_o) < 0.5
+        ]
+        if press_rims:
+            try:
+                fillet(press_rims, ph_fillet)
+            except Exception:
+                for e in press_rims:
+                    try:
+                        fillet([e], ph_fillet)
                     except Exception:
                         pass
 
