@@ -312,7 +312,7 @@ def assemble_arc(
 # ── cell ──────────────────────────────────────────────────────────────────────
 
 
-def make_cell(cfg: dict) -> tuple[Solid, Solid]:
+def make_cell(cfg: dict) -> tuple[Solid, Solid, list]:
     """Build one cell body and its seated magnet.
 
     Returns
@@ -501,6 +501,42 @@ def make_cell(cfg: dict) -> tuple[Solid, Solid]:
                                 fillet([e], groove_fillet_r)
                             except Exception:
                                 pass
+        # ── press hole: 3 mm radial access through the OD wall ───────────────
+        # A pin inserted from outside presses the magnet radially inward onto
+        # the bore.  Hole centre is at the magnet's top face so the pin bears
+        # on the magnet face.  Placed at Y=0 (centred on the pocket).
+        ph_d = 3.0
+        ph_r = ph_d / 2
+        ph_z = m["axial_mm"] / 2 - ph_r   # top of hole flush with magnet top face
+        ph_length = R_o - outer_face + ph_r + 2.0  # through OD wall + margin
+        press_hole = (
+            Solid.make_cylinder(ph_r, ph_length)
+            .moved(Rotation(0, 90, 0))           # cylinder now along +X (radial)
+            .moved(Location((outer_face - ph_r, 0, ph_z)))
+        )
+        add(press_hole, mode=Mode.SUBTRACT)
+
+        # ── retention beads: axial cylindrical ridges on the pocket tangential walls ──
+        # Short cylinders (2 mm, axis along Z) centred at the pocket tangential wall,
+        # half-embedded in the wall, half proud into the void.
+        # Top face sits at the magnet's seated upper edge so the magnet snaps past
+        # and the bead engages the rounded top corner when fully inserted.
+        bead_r = 0.15        # mm radius
+        bead_len = 2.0       # mm axial height
+        bead_z_start = m["axial_mm"] / 2 - bead_len + 0.1  # top face 0.1 mm above magnet top
+        pocket_half_tan = m["tangential_mm"] / 2 + cl / 2
+        # Shift bead radially outward so its surface just touches (zero interference)
+        # the magnet's outer-tangential axial edge fillet when the magnet is seated.
+        # The fillet centre is at (outer_face - r0, tan_face - r0); we need
+        # bead_centre distance from fillet_centre == bead_r + r0.
+        # With Y fixed at pocket_half_tan:  delta_x = sqrt((bead_r+r0)^2 - (cl/2+r0)^2) - r0
+        r0 = m["edge_radius_other_mm"]
+        bead_x = (magnet_r + m["radial_mm"] / 2
+                  + math.sqrt((bead_r + r0) ** 2 - (cl / 2 + r0) ** 2) - r0)
+        for sign in (+1.0, -1.0):
+            add(Solid.make_cylinder(bead_r, bead_len)   # axis already along Z
+                .moved(Location((bead_x, sign * pocket_half_tan, bead_z_start))))
+
         # ── targeted fillets ──────────────────────────────────────────────────
         # 1. Frustum opening rim: non-circular edges at the insertion end face.
         frustum_lip = [
@@ -603,103 +639,80 @@ def _export_3mf(groups: dict[str, list[Solid]], stem: str, out_dir: Path) -> Non
     print(f"Exported → {out_path}")
 
 
-def _make_surplus_cutter(cfg: dict, n_keep: int, n_total: int) -> Solid:
-    """Solid sector covering cell positions [n_keep, n_total) for use as a cut tool.
-
-    The sector starts at the boundary between cell n_keep-1 and cell n_keep
-    (i.e. at (n_keep - 0.5) * span_deg) and sweeps to the boundary after cell
-    n_total-1, covering the full radial and axial extent of the ring.
-    """
-    h = cfg["holder"]
-    m = cfg["magnet"]
-    total = h["magnet_count"]
-    span_deg = 360.0 / total
-    H_big = (m["axial_mm"] + 2 * h["end_face_mm"]) * 4
-    R_big = h["ID_mm"] / 2 + h["thickness_mm"] + 20.0
-
-    arc_span = (n_total - n_keep) * span_deg
-    start_deg = (n_keep - 0.5) * span_deg
-
-    xz_pts = [(0.0, -H_big / 2), (R_big, -H_big / 2), (R_big, H_big / 2), (0.0, H_big / 2)]
-    pts_3d = [(x, 0.0, z) for x, z in xz_pts]
-    edges = [Edge.make_line(pts_3d[i], pts_3d[(i + 1) % 4]) for i in range(4)]
-    sector = Solid.revolve(Face(Wire(edges)), arc_span, Axis.Z)
-    return sector.moved(Rotation(0, 0, start_deg))
+def _prime_factors(n: int) -> list[int]:
+    """Return the prime factors of n in ascending order, with repetition."""
+    factors: list[int] = []
+    d = 2
+    while d * d <= n:
+        while n % d == 0:
+            factors.append(d)
+            n //= d
+        d += 1
+    if n > 1:
+        factors.append(n)
+    return factors
 
 
 def _fuse_arc_doubling(cell: Solid, cfg: dict, n_cells: int) -> Solid:
-    """Build an arc of n_cells via the doubling strategy.
+    """Build an arc of n_cells via factored multiply-and-fuse.
 
-    Algorithm
-    ---------
-    1. Pick a base group size: 5 if n_cells % 5 == 0, else 3 if n_cells % 3 == 0,
-       else 1.
-    2. Build the base group by placing ``base`` identical cells at consecutive
-       angular positions and fusing them sequentially (small count, trivially fast).
-    3. Double: copy the current solid, rotate it by ``count`` cell-pitches, fuse.
-       Repeat until ``count >= n_cells``.
-    4. If ``count > n_cells``, cut away the surplus with a solid sector.
+    Factors n_cells into primes, then scales the accumulated arc by each factor
+    in turn using a double-and-add chain (binary exponentiation for addition).
+    This gives the minimum number of fuse operations for each factor, e.g.:
 
+      n=5  (prime)   → ×5 via double→double→+1  = 3 fuses  ("2×2+1")
+      n=9  = 3×3     → ×3 (2 fuses) then ×3 again  = 4 fuses
+      n=18 = 2×3×3   → ×2 (1) + ×3 (2) + ×3 (2)    = 5 fuses
+      n=25 = 5×5     → ×5 (3 fuses) then ×5 again   = 6 fuses
+
+    Because we build the exact count, no surplus cut is ever needed.
     Each fuse is validated immediately; raises ValueError on disconnected bodies.
     No landmark patches or North/South group distinctions are applied.
     """
+    if n_cells == 1:
+        return cell
+
     total = cfg["holder"]["magnet_count"]
     span_deg = 360.0 / total
 
-    # ── choose base group size ────────────────────────────────────────────────
-    if n_cells % 5 == 0:
-        base = 5
-    elif n_cells % 3 == 0:
-        base = 3
-    else:
-        base = 1
+    factors = _prime_factors(n_cells)
+    print(f"  Factorization: {n_cells} = " + " × ".join(str(f) for f in factors))
 
-    # ── build base group ─────────────────────────────────────────────────────
-    if base == 1:
-        current = cell
-        count = 1
-    else:
-        pieces = [cell.moved(Rotation(0, 0, i * span_deg)) for i in range(base)]
-        current = pieces[0]
-        for p in pieces[1:]:
-            current = current.fuse(p)
-            n_b = len(current.solids())
+    current = cell
+    count = 1  # cells in current
+
+    for f in factors:
+        # double-and-add: build f copies of current placed at consecutive positions
+        # n_built tracks how many count-wide copies we've accumulated so far
+        n_built = 1
+        result = current
+
+        for bit in range(f.bit_length() - 2, -1, -1):
+            # Double: place result adjacent to itself
+            copy = result.moved(Rotation(0, 0, n_built * count * span_deg))
+            result = result.fuse(copy)
+            n_built *= 2
+            n_b = len(result.solids())
             if n_b != 1:
                 raise ValueError(
-                    f"Base group fuse produced {n_b} bodies at base-{base}; "
+                    f"×{f}: double to {n_built} cells — fuse produced {n_b} bodies; "
                     "check for a gap between adjacent cells"
                 )
-        count = base
-        print(f"  Base group of {base}: 1 solid OK")
+            # Add one original if this bit of f is set
+            if (f >> bit) & 1:
+                copy = current.moved(Rotation(0, 0, n_built * count * span_deg))
+                result = result.fuse(copy)
+                n_built += 1
+                n_b = len(result.solids())
+                if n_b != 1:
+                    raise ValueError(
+                        f"×{f}: +1 to {n_built} cells — fuse produced {n_b} bodies; "
+                        "check for a gap between adjacent cells"
+                    )
 
-    # ── doubling loop ─────────────────────────────────────────────────────────
-    level = 0
-    while count < n_cells:
-        copy = current.moved(Rotation(0, 0, count * span_deg))
-        current = current.fuse(copy)
-        count *= 2
-        level += 1
-        n_b = len(current.solids())
-        if n_b != 1:
-            raise ValueError(
-                f"Doubling level {level}: fuse produced {n_b} bodies at count={count}; "
-                "check for a gap at the join"
-            )
-        print(f"  Level {level}: {count} cells — 1 solid OK")
-
-    # ── trim surplus ──────────────────────────────────────────────────────────
-    if count > n_cells:
-        surplus = count - n_cells
-        print(f"  Cutting {surplus} surplus cells (count={count} → {n_cells})...")
-        cutter = _make_surplus_cutter(cfg, n_cells, count)
-        current = current.cut(cutter)
-        n_b = len(current.solids())
-        if n_b != 1:
-            raise ValueError(
-                f"After cut, got {n_b} bodies; expected 1. "
-                "The cut boundary may not be clean."
-            )
-        print("  Cut OK — 1 solid body")
+        current = result
+        count *= f
+        print(f"  ×{f}: {count} cells — 1 solid OK")
 
     return current
 
