@@ -27,10 +27,20 @@ class PendulumSimulator:
     an impact jolts its velocity up to 2.2 rad/sec before it comes to rest.
     """
 
-    def __init__(self, sample_rate_hz: int = 5000, noise_rms_lsb: float = 0.8) -> None:
+    def __init__(
+        self,
+        sample_rate_hz: int = 5000,
+        noise_rms_lsb: float = 0.8,
+        magnitude: int = 1500,
+        gain_error_pct: float = 2.0,
+        offset_error: int = 0,
+    ) -> None:
         self.fs: int = sample_rate_hz
         self.dt: float = 1.0 / sample_rate_hz
         self.noise_rms: float = noise_rms_lsb
+        self.magnitude: int = magnitude
+        self.gain_error_pct: float = gain_error_pct
+        self.offset_error: int = offset_error
         self.g: float = 9.81
         self.r: float = 1.0
 
@@ -82,10 +92,16 @@ class PendulumSimulator:
         # - 18 pole pairs = 18 complete magnetic cycles per 360° rotation
         # - X channel: sin(18*theta) — sine quadrature
         # - Y channel: cos(18*theta) — cosine quadrature (90° ahead of X)
-        # - Amplitude: ±2047 (16-bit signed range, scaled from full encoder swing)
+        # - Amplitude: configurable magnitude (default 1500)
+        # - Apply gain error and offset as specified
         elec_phase = theta_arr * 18
-        raw_x = np.round(2047 * np.sin(elec_phase))
-        raw_y = np.round(2047 * np.cos(elec_phase))
+        raw_x = np.round(self.magnitude * np.sin(elec_phase))
+        raw_y = np.round(self.magnitude * np.cos(elec_phase))
+
+        # Apply gain error (as percentage) and offset error
+        gain_factor = 1.0 + (self.gain_error_pct / 100.0)
+        raw_x = np.round(raw_x * gain_factor) + self.offset_error
+        raw_y = np.round(raw_y * gain_factor) + self.offset_error
 
         # Superimpose the random electronic white noise floor you want to observe
         np.random.seed(42)
