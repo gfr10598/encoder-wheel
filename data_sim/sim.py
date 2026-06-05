@@ -27,7 +27,7 @@ class PendulumSimulator:
     an impact jolts its velocity up to 2.2 rad/sec before it comes to rest.
     """
 
-    def __init__(self, sample_rate_hz: int = 5000, noise_rms_lsb: float = 1.0) -> None:
+    def __init__(self, sample_rate_hz: int = 5000, noise_rms_lsb: float = 0.8) -> None:
         self.fs: int = sample_rate_hz
         self.dt: float = 1.0 / sample_rate_hz
         self.noise_rms: float = noise_rms_lsb
@@ -142,7 +142,325 @@ class DeltaDeltaEncoder:
 
 
 # ==============================================================================
-# 2b. LINEAR MATRIX PREDICTOR (Affine Transformation with Adaptive Learning)
+# 2b. VELOCITY-BASED DELTA PREDICTOR with Adaptive Learning
+# ==============================================================================
+class VelocityPredictor:
+    """
+    Predicts the next delta (velocity) using exponential moving average of past deltas.
+    Much simpler and more effective than position matrix for smooth periodic motions.
+    """
+
+    def __init__(self, alpha: float = 0.25) -> None:
+        """
+        alpha: learning rate for exponential moving average (0-1).
+        Higher = more responsive to recent changes.
+        """
+        self.alpha = alpha
+        self.predicted_dx: float = 0.0
+        self.predicted_dy: float = 0.0
+
+    def predict(self) -> Tuple[int, int]:
+        """Return current velocity predictions."""
+        return int(round(self.predicted_dx)), int(round(self.predicted_dy))
+
+    def update(self, dx: int, dy: int) -> None:
+        """Update velocity prediction based on actual delta."""
+        self.predicted_dx = self.alpha * dx + (1 - self.alpha) * self.predicted_dx
+        self.predicted_dy = self.alpha * dy + (1 - self.alpha) * self.predicted_dy
+
+    def bootstrap(self, deltas_x: list[int], deltas_y: list[int]) -> None:
+        """
+        Rapidly initialize predictor using median of initial deltas.
+        Called during startup with first N samples to establish baseline velocity.
+        """
+        if len(deltas_x) > 0:
+            # Use median to be robust to outliers
+            deltas_x_sorted = sorted(deltas_x)
+            deltas_y_sorted = sorted(deltas_y)
+            mid = len(deltas_x_sorted) // 2
+
+            self.predicted_dx = float(deltas_x_sorted[mid])
+            self.predicted_dy = float(deltas_y_sorted[mid])
+
+    def reset(self) -> None:
+        """Reset predictions to zero."""
+        self.predicted_dx = 0.0
+        self.predicted_dy = 0.0
+
+
+# ==============================================================================
+# 2b. VELOCITY-BASED ENCODER (Delta Prediction with 4-bit Residual)
+# ==============================================================================
+class VelocityEncoder:
+    """
+    Encoder using velocity prediction with byte-stuffing escape protocol.
+    Predicts delta from EMA of past deltas, quantizes residuals to 4 bits per channel.
+
+    Protocol:
+      - Residual byte format: [X_residual_4bit | Y_residual_4bit]
+        X & Y range: -8 to +7 encoded as 0x0-0xF (4-bit signed)
+      - Control frames: 0xF? where low nibble indicates frame type
+        * 0xF0 = position sync: 0xF0 + 4-byte position
+        * 0xF1 = state sync: 0xF1 + 4-byte position + 24-byte coefficients
+      - Escape sequence: 0xFE + literal byte (for any residual byte >= 0xF0)
+    """
+
+    @staticmethod
+    def encode(
+        x_stream: np.ndarray, y_stream: np.ndarray, alpha: float = 0.25
+    ) -> bytearray:
+        """
+        Encode using velocity prediction with rapid startup bootstrapping.
+        Protocol: 0xF0 = position sync, 0xFE = escape for literal 0xF? byte
+        """
+        compressed_bytes = bytearray()
+        predictor = VelocityPredictor(alpha=alpha)
+        prev_x, prev_y = 0, 0
+        samples_encoded = 0
+        bootstrap_size = 12  # Collect 12 deltas for rapid startup
+
+        # Diagnostics
+        all_residuals_x = []
+        all_residuals_y = []
+
+        def emit_sync_frame(x: int, y: int) -> None:
+            """Emit position sync: 0xF0 + 4-byte position"""
+            compressed_bytes.append(0xF0)
+            compressed_bytes.extend(x.to_bytes(2, byteorder="big", signed=True))
+            compressed_bytes.extend(y.to_bytes(2, byteorder="big", signed=True))
+
+        def emit_residual_byte(byte: int) -> None:
+            """Emit residual byte, escaping any 0xF? as 0xFE 0xF?"""
+            if byte >= 0xF0:  # Any byte with high nibble = F
+                compressed_bytes.append(0xFE)
+                compressed_bytes.append(byte)
+            else:
+                compressed_bytes.append(byte)
+
+        # Phase 1: Emit initial sync frame and collect bootstrap deltas
+        if len(x_stream) > 0:
+            cx, cy = int(x_stream[0]), int(y_stream[0])
+            emit_sync_frame(cx, cy)
+            prev_x, prev_y = cx, cy
+
+            # Collect initial deltas for bootstrapping, emit positions as sync frames
+            bootstrap_deltas_x = []
+            bootstrap_deltas_y = []
+
+            for i in range(1, min(bootstrap_size + 1, len(x_stream))):
+                cx, cy = int(x_stream[i]), int(y_stream[i])
+                dx = s16(cx - prev_x)
+                dy = s16(cy - prev_y)
+                bootstrap_deltas_x.append(dx)
+                bootstrap_deltas_y.append(dy)
+
+                # Emit bootstrap positions as sync frames so decoder can mirror bootstrap
+                emit_sync_frame(cx, cy)
+                prev_x, prev_y = cx, cy
+
+            # Initialize predictor with bootstrap
+            if len(bootstrap_deltas_x) > 0:
+                predictor.bootstrap(bootstrap_deltas_x, bootstrap_deltas_y)
+
+            # Now encode from the bootstrap point onward
+            for i in range(bootstrap_size + 1, len(x_stream)):
+                cx, cy = int(x_stream[i]), int(y_stream[i])
+
+                # Actual delta
+                dx = s16(cx - prev_x)
+                dy = s16(cy - prev_y)
+
+                # Predict delta using bootstrapped predictor
+                pred_dx, pred_dy = predictor.predict()
+
+                # Residual (actual - predicted)
+                res_x = dx - pred_dx
+                res_y = dy - pred_dy
+
+                all_residuals_x.append(res_x)
+                all_residuals_y.append(res_y)
+
+                # Clamp residuals to 4-bit signed range [-8, +7]
+                res_x_q = max(-8, min(7, res_x))
+                res_y_q = max(-8, min(7, res_y))
+
+                # Encode as 4-bit signed nibbles
+                nibble_x = res_x_q & 0x0F
+                nibble_y = res_y_q & 0x0F
+
+                # Pack: high 4 bits = X, low 4 bits = Y
+                residual_byte = (nibble_x << 4) | nibble_y
+                emit_residual_byte(residual_byte)
+
+                # Update predictor
+                predictor.update(dx, dy)
+
+                prev_x, prev_y = cx, cy
+                samples_encoded += 1
+
+                # Emit sync frame periodically or if prediction error is large
+                max_error = max(abs(res_x), abs(res_y))
+                if max_error > 16 or samples_encoded >= 256:
+                    emit_sync_frame(cx, cy)
+                    predictor.reset()
+                    samples_encoded = 0
+
+        # Print diagnostics
+        if len(all_residuals_x) > 0:
+            print(f"\n  Residual statistics (velocity):")
+            print(
+                f"    X: mean={np.mean(all_residuals_x):.2f}, std={np.std(all_residuals_x):.2f}, "
+                f"min={np.min(all_residuals_x)}, max={np.max(all_residuals_x)}"
+            )
+            print(
+                f"    Y: mean={np.mean(all_residuals_y):.2f}, std={np.std(all_residuals_y):.2f}, "
+                f"min={np.min(all_residuals_y)}, max={np.max(all_residuals_y)}"
+            )
+
+        return compressed_bytes
+
+
+# ==============================================================================
+# 2c. VELOCITY-BASED DECODER
+# ==============================================================================
+class VelocityDecoder:
+    @staticmethod
+    def decode(
+        byte_stream: bytearray, alpha: float = 0.25
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Decode stream using same velocity predictor as encoder.
+        Protocol: 0xF0 = position sync, 0xFE = escape for literal 0xF? byte
+        Nibble meanings (4-bit signed residuals):
+          0x0 = -8, 0x1 = -7, ..., 0x7 = -1, 0x8 = 0, 0x9 = +1, ..., 0xF = +7
+        """
+        predictor = VelocityPredictor(alpha=alpha)
+        recon_x, recon_y = [], []
+        prev_x, prev_y = 0, 0
+        ptr = 0
+        stream_len = len(byte_stream)
+
+        def read_sync_frame() -> Tuple[bool, int, int]:
+            """Try to read position sync (0xF0 + 4-byte position).
+            Returns (is_sync, x, y) or (False, 0, 0) if not a sync.
+            """
+            nonlocal ptr
+            if ptr + 4 <= stream_len and byte_stream[ptr] == 0xF0:
+                x = int.from_bytes(
+                    byte_stream[ptr + 1 : ptr + 3], byteorder="big", signed=True
+                )
+                y = int.from_bytes(
+                    byte_stream[ptr + 3 : ptr + 5], byteorder="big", signed=True
+                )
+                ptr += 5
+                return True, x, y
+            return False, 0, 0
+
+        def read_data_byte() -> Tuple[bool, int]:
+            """Read next data byte, handling escapes (0xFE 0xF? -> 0xF?).
+            Returns (is_valid, byte_value).
+            """
+            nonlocal ptr
+            if ptr >= stream_len:
+                return False, 0
+            byte = byte_stream[ptr]
+            if byte == 0xFE:
+                if ptr + 1 < stream_len:
+                    escaped_byte = byte_stream[ptr + 1]
+                    ptr += 2
+                    return True, escaped_byte  # Literal 0xF? byte
+                else:
+                    return False, 0
+            elif byte < 0xF0:
+                # Normal data byte (residual)
+                ptr += 1
+                return True, byte
+            else:
+                # Unescaped 0xF? (could be control frame), don't consume
+                return False, 0
+
+        # Phase 1: Read initial sync frame
+        is_sync, cx, cy = read_sync_frame()
+        if is_sync:
+            recon_x.append(cx)
+            recon_y.append(cy)
+            prev_x, prev_y = cx, cy
+
+        # Phase 2: Read bootstrap sync frames and collect deltas
+        bootstrap_deltas_x = []
+        bootstrap_deltas_y = []
+        bootstrap_size = 12
+
+        for _ in range(bootstrap_size):
+            is_sync, cx, cy = read_sync_frame()
+            if is_sync:
+                dx = s16(cx - prev_x)
+                dy = s16(cy - prev_y)
+                bootstrap_deltas_x.append(dx)
+                bootstrap_deltas_y.append(dy)
+                recon_x.append(cx)
+                recon_y.append(cy)
+                prev_x, prev_y = cx, cy
+            else:
+                break
+
+        # Initialize predictor with bootstrap deltas
+        if len(bootstrap_deltas_x) > 0:
+            predictor.bootstrap(bootstrap_deltas_x, bootstrap_deltas_y)
+
+        # Phase 3: Decode residuals
+        while ptr < stream_len:
+            # Try to read sync frame first
+            is_sync, cx, cy = read_sync_frame()
+            if is_sync:
+                recon_x.append(cx)
+                recon_y.append(cy)
+                prev_x, prev_y = cx, cy
+                predictor.reset()
+            else:
+                # Try to read data byte
+                is_valid, residual_byte = read_data_byte()
+                if is_valid:
+                    # Decode 4-bit signed nibbles
+                    def decode_4bit(val: int) -> int:
+                        # Convert 4-bit unsigned to 4-bit signed
+                        val = val & 0x0F
+                        if val >= 8:
+                            return val - 16
+                        return val
+
+                    nibble_x = (residual_byte >> 4) & 0x0F
+                    nibble_y = residual_byte & 0x0F
+
+                    res_x = decode_4bit(nibble_x)
+                    res_y = decode_4bit(nibble_y)
+
+                    # Predict delta
+                    pred_dx, pred_dy = predictor.predict()
+
+                    # Reconstruct: actual_delta = prediction + residual
+                    dx = s16(pred_dx + res_x)
+                    dy = s16(pred_dy + res_y)
+
+                    # Reconstruct position
+                    cx = s16(prev_x + dx)
+                    cy = s16(prev_y + dy)
+
+                    recon_x.append(cx)
+                    recon_y.append(cy)
+
+                    # Update predictor
+                    predictor.update(dx, dy)
+
+                    prev_x, prev_y = cx, cy
+                else:
+                    # Unexpected byte, skip
+                    ptr += 1
+
+        return np.array(recon_x, dtype=np.int16), np.array(recon_y, dtype=np.int16)
+
+
+# ==============================================================================
+# 2d. LINEAR MATRIX PREDICTOR (Affine Transformation with RLS Learning)
 # ==============================================================================
 class LinearMatrixPredictor:
     """
@@ -201,6 +519,57 @@ class LinearMatrixPredictor:
             self.E += alpha * mean_err_x * 0.5
             self.F += alpha * mean_err_y * 0.5
 
+    def bootstrap(self, positions_x: list[int], positions_y: list[int]) -> None:
+        """
+        Rapidly initialize affine matrix from a sequence of positions.
+        Uses least-squares fit to find best rotation/scaling.
+        """
+        if len(positions_x) < 3:
+            return
+
+        # Use first two position pairs to estimate the matrix
+        # [x1, x2] = A*[x0] + B*[y0] + E
+        # [y1, y2]   C*[x0]   D*[y0]   F
+        x0, y0 = positions_x[0], positions_y[0]
+        x1, y1 = positions_x[1], positions_y[1]
+        x2, y2 = positions_x[2], positions_y[2]
+
+        # Estimate rotation from deltas
+        dx01 = x1 - x0
+        dy01 = y1 - y0
+        dx02 = x2 - x0
+        dy02 = y2 - y0
+
+        # Compute norms for normalization
+        norm01 = np.sqrt(dx01**2 + dy01**2 + 1e-6)
+        norm02 = np.sqrt(dx02**2 + dy02**2 + 1e-6)
+
+        # Normalize
+        dx01_n = dx01 / norm01
+        dy01_n = dy01 / norm01
+        dx02_n = dx02 / norm02
+        dy02_n = dy02 / norm02
+
+        # Estimate rotation matrix from normalized vectors
+        # For small rotations, the rotation approximately preserves the second vector
+        cos_theta = dx01_n * dx02_n + dy01_n * dy02_n
+        sin_theta = -dy01_n * dx02_n + dx01_n * dy02_n
+
+        # Clamp to valid range
+        cos_theta = max(-1.0, min(1.0, cos_theta))
+        sin_theta = max(-1.0, min(1.0, sin_theta))
+
+        # Set matrix to approximate rotation
+        scale = norm02 / (norm01 + 1e-6)
+        self.A = cos_theta * scale
+        self.B = -sin_theta * scale
+        self.C = sin_theta * scale
+        self.D = cos_theta * scale
+
+        # Set offset to first position
+        self.E = float(x0)
+        self.F = float(y0)
+
     def reset(self) -> None:
         """Reset to identity + zero offset."""
         self.A = 1.0
@@ -214,13 +583,23 @@ class LinearMatrixPredictor:
 
 
 # ==============================================================================
-# 2b. LINEAR MATRIX ENCODER (Affine Prediction with 2-bit Residual Quantization)
+# 2d. LINEAR MATRIX ENCODER (Affine Prediction with 2-bit Residual Quantization)
 # ==============================================================================
 class LinearMatrixEncoder:
     """
-    Encoder using affine matrix predictor.
+    Encoder using affine matrix predictor with periodic state synchronization.
     Predicts next position, quantizes residuals to 2 bits per channel,
     packs into single 4-bit nibble per sample.
+    Emits full predictor state every 100msec for decoder resynchronization.
+
+    Protocol:
+      - Residual byte format: [X_residual_2bit | Y_residual_2bit | padding_2bit | padding_2bit]
+        X & Y range: -2, -1, 0, +1 encoded as 0x0-0x3 (2-bit signed)
+        Upper 2 bits of each nibble are padding (always 0)
+      - Control frames: 0xF? where low nibble indicates frame type
+        * 0xF0 = position sync: 0xF0 + 4-byte position
+        * 0xF1 = state sync: 0xF1 + 4-byte position + 24-byte coefficients (6×4-byte)
+      - Escape sequence: 0xFE + literal byte (for any residual byte >= 0xF0)
     """
 
     @staticmethod
@@ -228,29 +607,65 @@ class LinearMatrixEncoder:
         """
         Encode using linear matrix prediction with 2-bit residual quantization.
         Residuals quantized to 2-bit signed: -2, -1, 0, +1
+        Emits full state packet (0xF1) every ~500 samples (100msec at 5kHz).
         """
         compressed_bytes = bytearray()
         predictor = LinearMatrixPredictor()
         prev_x, prev_y = 0, 0
         samples_encoded = 0
-        learning_warmup = 32
+        samples_since_state = 0
+        state_interval = 500  # Emit state every 500 samples (~100msec at 5kHz)
+        bootstrap_size = 4
 
         # Diagnostics
         all_residuals_x = []
         all_residuals_y = []
 
-        for i in range(len(x_stream)):
-            cx, cy = int(x_stream[i]), int(y_stream[i])
+        if len(x_stream) == 0:
+            return compressed_bytes
 
-            if i == 0:
-                # Sync frame: emit uncompressed position
-                compressed_bytes.append(0xFF)
-                compressed_bytes.extend(cx.to_bytes(2, byteorder="big", signed=True))
-                compressed_bytes.extend(cy.to_bytes(2, byteorder="big", signed=True))
-                prev_x, prev_y = cx, cy
-                predictor.reset()
-                samples_encoded = 0
-                continue
+        # Phase 1: Emit initial position sync
+        cx, cy = int(x_stream[0]), int(y_stream[0])
+        compressed_bytes.append(0xF0)
+        compressed_bytes.extend(cx.to_bytes(2, byteorder="big", signed=True))
+        compressed_bytes.extend(cy.to_bytes(2, byteorder="big", signed=True))
+        prev_x, prev_y = cx, cy
+
+        # Phase 2: Collect bootstrap samples to initialize predictor
+        bootstrap_positions_x = [cx]
+        bootstrap_positions_y = [cy]
+
+        for i in range(1, min(bootstrap_size + 1, len(x_stream))):
+            cx, cy = int(x_stream[i]), int(y_stream[i])
+            bootstrap_positions_x.append(cx)
+            bootstrap_positions_y.append(cy)
+            prev_x, prev_y = cx, cy
+
+        # Initialize predictor from bootstrap samples
+        if len(bootstrap_positions_x) >= 4:
+            predictor.bootstrap(bootstrap_positions_x, bootstrap_positions_y)
+
+        # Emit first state packet with initialized coefficients
+        compressed_bytes.append(0xF1)  # State packet marker
+        compressed_bytes.extend(cx.to_bytes(2, byteorder="big", signed=True))
+        compressed_bytes.extend(cy.to_bytes(2, byteorder="big", signed=True))
+        # Pack 6 floats (A, B, C, D, E, F) as 4-byte values
+        for coeff in [
+            predictor.A,
+            predictor.B,
+            predictor.C,
+            predictor.D,
+            predictor.E,
+            predictor.F,
+        ]:
+            compressed_bytes.extend(
+                int(coeff * 1000).to_bytes(4, byteorder="big", signed=True)
+            )
+        samples_since_state = 0
+
+        # Phase 3: Encode remaining samples
+        for i in range(bootstrap_size + 1, len(x_stream)):
+            cx, cy = int(x_stream[i]), int(y_stream[i])
 
             # Predict next position using affine transform
             pred_x, pred_y = predictor.predict(prev_x, prev_y)
@@ -276,54 +691,79 @@ class LinearMatrixEncoder:
             # Pack: XXYY (4 bits total, X in high 2 bits, Y in low 2 bits)
             compressed_bytes.append((nibble_x << 2) | nibble_y)
 
-            # Adapt predictor after warmup period
-            if samples_encoded >= learning_warmup:
-                predictor.update(prev_x, prev_y, cx, cy)
+            # Update predictor
+            predictor.update(prev_x, prev_y, cx, cy)
 
             prev_x, prev_y = cx, cy
             samples_encoded += 1
+            samples_since_state += 1
 
-            # Emit sync frame periodically or if prediction error is large
+            # Emit full state packet periodically
+            if samples_since_state >= state_interval:
+                compressed_bytes.append(0xF1)  # State packet marker
+                compressed_bytes.extend(cx.to_bytes(2, byteorder="big", signed=True))
+                compressed_bytes.extend(cy.to_bytes(2, byteorder="big", signed=True))
+                # Pack coefficients as scaled integers (scale by 1000 for precision)
+                for coeff in [
+                    predictor.A,
+                    predictor.B,
+                    predictor.C,
+                    predictor.D,
+                    predictor.E,
+                    predictor.F,
+                ]:
+                    compressed_bytes.extend(
+                        int(coeff * 1000).to_bytes(4, byteorder="big", signed=True)
+                    )
+                samples_since_state = 0
+
+            # Emit position-only sync frame if residual error is too large
             max_error = max(abs(res_x), abs(res_y))
-            if max_error > 8 or samples_encoded >= 256:
-                compressed_bytes.append(0xFF)
+            if max_error > 8:
+                compressed_bytes.append(0xF0)
                 compressed_bytes.extend(cx.to_bytes(2, byteorder="big", signed=True))
                 compressed_bytes.extend(cy.to_bytes(2, byteorder="big", signed=True))
                 predictor.reset()
                 samples_encoded = 0
+                samples_since_state = 0
 
         # Print diagnostics
         if len(all_residuals_x) > 0:
-            print(f"\n  Residual statistics:")
-            print(f"    X: mean={np.mean(all_residuals_x):.2f}, std={np.std(all_residuals_x):.2f}, "
-                  f"min={np.min(all_residuals_x)}, max={np.max(all_residuals_x)}")
-            print(f"    Y: mean={np.mean(all_residuals_y):.2f}, std={np.std(all_residuals_y):.2f}, "
-                  f"min={np.min(all_residuals_y)}, max={np.max(all_residuals_y)}")
+            print(f"\n  Residual statistics (matrix with state sync):")
+            print(
+                f"    X: mean={np.mean(all_residuals_x):.2f}, std={np.std(all_residuals_x):.2f}, "
+                f"min={np.min(all_residuals_x)}, max={np.max(all_residuals_x)}"
+            )
+            print(
+                f"    Y: mean={np.mean(all_residuals_y):.2f}, std={np.std(all_residuals_y):.2f}, "
+                f"min={np.min(all_residuals_y)}, max={np.max(all_residuals_y)}"
+            )
 
         return compressed_bytes
 
 
 # ==============================================================================
-# 2c. LINEAR MATRIX DECODER (Mirror of Encoder)
+# 2e. LINEAR MATRIX DECODER (Mirror of Encoder with State Sync)
 # ==============================================================================
 class LinearMatrixDecoder:
     @staticmethod
     def decode(byte_stream: bytearray) -> Tuple[np.ndarray, np.ndarray]:
-        """Decode stream using same affine matrix predictor as encoder."""
-        compressed_bytes = bytearray()
+        """Decode stream using same affine matrix predictor as encoder.
+        Protocol: 0xF0 = position sync, 0xF1 = state sync, 0xFE = escape for literal 0xF?
+        Nibble meanings (2-bit signed residuals):
+          0b00 = -2, 0b01 = -1, 0b10 = 0, 0b11 = +1
+        """
         predictor = LinearMatrixPredictor()
         recon_x, recon_y = [], []
         prev_x, prev_y = 0, 0
-        samples_decoded = 0
-        learning_warmup = 32
         ptr = 0
         stream_len = len(byte_stream)
 
         while ptr < stream_len:
             ctrl_byte = byte_stream[ptr]
 
-            if ctrl_byte == 0xFF:
-                # Sync frame: read uncompressed position
+            if ctrl_byte == 0xF0:
+                # Position-only sync frame: read uncompressed position, reset predictor
                 cx = int.from_bytes(
                     byte_stream[ptr + 1 : ptr + 3], byteorder="big", signed=True
                 )
@@ -334,8 +774,77 @@ class LinearMatrixDecoder:
                 recon_y.append(cy)
                 prev_x, prev_y = cx, cy
                 predictor.reset()
-                samples_decoded = 0
                 ptr += 5
+
+            elif ctrl_byte == 0xF1:
+                # Full state packet: read position + all 6 predictor coefficients
+                cx = int.from_bytes(
+                    byte_stream[ptr + 1 : ptr + 3], byteorder="big", signed=True
+                )
+                cy = int.from_bytes(
+                    byte_stream[ptr + 3 : ptr + 5], byteorder="big", signed=True
+                )
+                recon_x.append(cx)
+                recon_y.append(cy)
+                prev_x, prev_y = cx, cy
+
+                # Extract and restore predictor coefficients (scaled by 1000)
+                offset = 5
+                coeffs = []
+                for _ in range(6):
+                    coeff_scaled = int.from_bytes(
+                        byte_stream[offset : offset + 4], byteorder="big", signed=True
+                    )
+                    coeffs.append(coeff_scaled / 1000.0)
+                    offset += 4
+
+                predictor.A = coeffs[0]
+                predictor.B = coeffs[1]
+                predictor.C = coeffs[2]
+                predictor.D = coeffs[3]
+                predictor.E = coeffs[4]
+                predictor.F = coeffs[5]
+
+                ptr += 5 + 24  # 5 bytes header + 6*4 bytes coefficients
+
+            elif ctrl_byte == 0xFE:
+                # Escape sequence: next byte is a literal 0xF? residual data
+                if ptr + 1 < stream_len:
+                    data_byte = byte_stream[ptr + 1]
+                    ptr += 2
+
+                    # Decode 2-bit residuals
+                    def decode_2bit(val: int) -> int:
+                        # Map [0, 1, 2, 3] to [-2, -1, 0, +1]
+                        return (val & 0x03) - 2
+
+                    nibble_x = (data_byte >> 2) & 0x03
+                    nibble_y = data_byte & 0x03
+
+                    res_x_q = decode_2bit(nibble_x)
+                    res_y_q = decode_2bit(nibble_y)
+
+                    # Predict next position
+                    pred_x, pred_y = predictor.predict(prev_x, prev_y)
+
+                    # Reconstruct: actual = prediction + residual
+                    cx = pred_x + res_x_q
+                    cy = pred_y + res_y_q
+
+                    # Clamp to 16-bit signed range
+                    cx = s16(cx)
+                    cy = s16(cy)
+
+                    recon_x.append(cx)
+                    recon_y.append(cy)
+
+                    # Update predictor
+                    predictor.update(prev_x, prev_y, cx, cy)
+
+                    prev_x, prev_y = cx, cy
+                else:
+                    ptr += 1
+
             else:
                 # Decode 2-bit residuals
                 def decode_2bit(val: int) -> int:
@@ -362,12 +871,10 @@ class LinearMatrixDecoder:
                 recon_x.append(cx)
                 recon_y.append(cy)
 
-                # Adapt predictor after warmup
-                if samples_decoded >= learning_warmup:
-                    predictor.update(prev_x, prev_y, cx, cy)
+                # Update predictor (always, without warmup - we're bootstrapped)
+                predictor.update(prev_x, prev_y, cx, cy)
 
                 prev_x, prev_y = cx, cy
-                samples_decoded += 1
                 ptr += 1
 
         return np.array(recon_x, dtype=np.int16), np.array(recon_y, dtype=np.int16)
@@ -477,6 +984,7 @@ class FilteredDeltaDeltaDecoder:
                 prev_res_dx, prev_res_dy = res_dx, res_dy
                 ptr += 1
 
+
 # ==============================================================================
 # 4. ANALYSIS AND VISUALIZATION
 # ==============================================================================
@@ -559,31 +1067,64 @@ def run_simulation_and_plot(plot: bool = True) -> None:
     print(f"  Delta-delta bytes:  {delta_count} ({100*delta_count/len(encoded):.1f}%)")
     delta_unique, delta_counts = analyze_encoding_histogram(encoded, plot=plot)
 
-    print("\n=== LINEAR MATRIX: Affine Transform Prediction ===")
-    print("Encoding with linear matrix prediction (2-bit residuals)...", end=" ", flush=True)
-    encoded_matrix = LinearMatrixEncoder.encode(final_x, final_y)
+    print("\n=== VELOCITY PREDICTION: EMA Delta Forecasting ===")
+    print("Encoding with velocity prediction (alpha=0.25)...", end=" ", flush=True)
+    encoded_matrix = VelocityEncoder.encode(final_x, final_y, alpha=0.25)
     print(
         f"done ({len(encoded_matrix):,} bytes, {100*len(encoded_matrix)/raw_bytes:.1f}% of raw)"
     )
 
-    print("Decoding matrix stream...", end=" ", flush=True)
-    decoded_x_matrix, decoded_y_matrix = LinearMatrixDecoder.decode(encoded_matrix)
+    print("Decoding velocity stream...", end=" ", flush=True)
+    decoded_x_matrix, decoded_y_matrix = VelocityDecoder.decode(
+        encoded_matrix, alpha=0.25
+    )
     print("done")
 
-    # Verify matrix reconstruction
-    print("Verifying matrix reconstruction...", end=" ", flush=True)
-    assert np.array_equal(final_x, decoded_x_matrix) and np.array_equal(
-        final_y, decoded_y_matrix
-    )
+    # Verify velocity reconstruction
+    print("Verifying velocity reconstruction...", end=" ", flush=True)
+    if not (
+        np.array_equal(final_x, decoded_x_matrix)
+        and np.array_equal(final_y, decoded_y_matrix)
+    ):
+        # Debug: find first divergence
+        print("\n  MISMATCH!")
+        for i in range(min(len(final_x), len(decoded_x_matrix))):
+            if final_x[i] != decoded_x_matrix[i] or final_y[i] != decoded_y_matrix[i]:
+                print(f"  First divergence at index {i}:")
+                print(f"    Angle: {angles[i]:.2f}°, Rate: {rates[i]:.4f} rad/s")
+                start = max(0, i - 2)
+                end = min(len(final_x), i + 5)
+                print(
+                    f"    Original X[{start}:{end}]: "
+                    + ", ".join(str(int(v)) for v in final_x[start:end])
+                )
+                print(
+                    f"    Decoded X[{start}:{end}]:  "
+                    + ", ".join(str(int(v)) for v in decoded_x_matrix[start:end])
+                )
+                print(
+                    f"    Original Y[{start}:{end}]: "
+                    + ", ".join(str(int(v)) for v in final_y[start:end])
+                )
+                print(
+                    f"    Decoded Y[{start}:{end}]:  "
+                    + ", ".join(str(int(v)) for v in decoded_y_matrix[start:end])
+                )
+                break
+        if len(final_x) != len(decoded_x_matrix):
+            print(
+                f"  Length mismatch: original {len(final_x)}, decoded {len(decoded_x_matrix)}"
+            )
+        raise AssertionError("Velocity reconstruction mismatch")
     print("OK")
 
     # Print first 16 sample values
-    print("\nFirst 16 matrix-decoded samples:")
+    print("\nFirst 16 velocity-decoded samples:")
     print("  X: " + ", ".join(str(int(v)) for v in decoded_x_matrix[:16]))
     print("  Y: " + ", ".join(str(int(v)) for v in decoded_y_matrix[:16]))
 
-    # Analyze matrix encoding distribution
-    print("\nMatrix encoding distribution:")
+    # Analyze velocity encoding distribution
+    print("\nVelocity encoding distribution:")
     unique_matrix, counts_matrix = np.unique(encoded_matrix, return_counts=True)
     sync_count_matrix = (
         counts_matrix[unique_matrix == 0xFF][0] if 0xFF in unique_matrix else 0
@@ -601,12 +1142,12 @@ def run_simulation_and_plot(plot: bool = True) -> None:
     print("\n=== EFFICIENCY COMPARISON ===")
     improvement = (len(encoded) - len(encoded_matrix)) / len(encoded) * 100
     print(f"Baseline size:  {len(encoded):,} bytes")
-    print(f"Matrix size:    {len(encoded_matrix):,} bytes")
+    print(f"Velocity size:  {len(encoded_matrix):,} bytes")
     print(
         f"Improvement:    {improvement:+.1f}% ({len(encoded) - len(encoded_matrix):,} bytes saved)"
     )
     print(
-        f"Sync frames baseline:  {sync_count:,} vs matrix: {sync_count_matrix:,} (delta: {sync_count_matrix - sync_count:+d})"
+        f"Sync frames baseline:  {sync_count:,} vs velocity: {sync_count_matrix:,} (delta: {sync_count_matrix - sync_count:+d})"
     )
 
     # We invert velocity values in the plot to show standard left-to-right positive motion
